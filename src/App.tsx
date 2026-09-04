@@ -41,6 +41,7 @@ import { SecurityArchitectureModal } from "./components/SecurityArchitectureModa
 import { SettingsModal } from "./components/SettingsModal";
 import { Sparkles, AlertCircle, Clock } from "lucide-react";
 import { useTheme } from "./lib/theme";
+import { getSheetsConfig, syncToGoogleSheets } from "./lib/sheets";
 
 export default function App() {
   const { isLight } = useTheme();
@@ -341,6 +342,22 @@ export default function App() {
         await saveJournalEntry(user.uid, entryToSave);
       }
       setLastSavedAt(Date.now());
+
+      // Auto-sync to Google Sheets if user configured autoSync
+      try {
+        const sheetsCfg = getSheetsConfig();
+        if (sheetsCfg.autoSync) {
+          syncToGoogleSheets({
+            entries: [entryToSave],
+            userEmail: user?.email || undefined,
+            webhookUrl: sheetsCfg.webhookUrl,
+            spreadsheetId: sheetsCfg.spreadsheetId,
+          }).catch((err) => console.warn("Background Sheets sync non-blocking error:", err));
+        }
+      } catch (sheetsErr) {
+        // Non-blocking catch to prevent journal disruption
+        console.warn("Sheets auto-sync trigger error:", sheetsErr);
+      }
     } catch (err: any) {
       console.error("Error saving journal entry:", err);
       setSaveError("Failed to synchronize entry: " + err.message);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { User } from "firebase/auth";
 import { 
   Settings, 
@@ -23,10 +23,29 @@ import {
   Terminal,
   RefreshCw,
   Bell,
-  Check
+  Check,
+  Mail,
+  Send,
+  FileSpreadsheet,
+  Copy,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { JournalEntry, ResetSession, PrunedThoughtLoop, GlimmerAnchor } from "../types";
 import { useTheme } from "../lib/theme";
+import { 
+  getSheetsConfig, 
+  saveSheetsConfig, 
+  syncToGoogleSheets, 
+  exportToGoogleSheetsCsv, 
+  getGoogleAppsScriptTemplate,
+  SheetsSyncConfig,
+  SheetsSyncResult
+} from "../lib/sheets";
+import { 
+  dispatchTestEmail, 
+  EmailDispatchResult 
+} from "../lib/email";
 
 interface ConfigWorkspaceProps {
   user: User | null;
@@ -57,6 +76,26 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
   );
   const [testNotificationSent, setTestNotificationSent] = useState(false);
+
+  // Email Notification States
+  const [testEmailAddress, setTestEmailAddress] = useState(user?.email || "");
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
+  const [emailTestResult, setEmailTestResult] = useState<EmailDispatchResult | null>(null);
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
+
+  // Google Sheets Integration States
+  const [sheetsConfig, setSheetsConfig] = useState<SheetsSyncConfig>(getSheetsConfig());
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
+  const [sheetsSyncResult, setSheetsSyncResult] = useState<SheetsSyncResult | null>(null);
+  const [copiedAppsScript, setCopiedAppsScript] = useState(false);
+  const [showAppsScriptGuide, setShowAppsScriptGuide] = useState(false);
+
+  // Keep test email address in sync with authenticated user
+  useEffect(() => {
+    if (user?.email && !testEmailAddress) {
+      setTestEmailAddress(user.email);
+    }
+  }, [user]);
 
   const handleEnableNotifications = async () => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -116,6 +155,82 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
     } finally {
       setIsCheckingScheduler(false);
     }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!testEmailAddress || !testEmailAddress.includes("@")) return;
+    setIsSendingTestEmail(true);
+    setEmailTestResult(null);
+    try {
+      const res = await dispatchTestEmail({
+        recipientEmail: testEmailAddress,
+        recipientName: user?.displayName || testEmailAddress.split("@")[0],
+        hoursInactive: hoursSinceLastEntry,
+        circadianPhase: "Evening Loop Closure",
+      });
+      setEmailTestResult(res);
+    } catch (err: any) {
+      setEmailTestResult({
+        status: "error",
+        provider: "preview_mock",
+        message: err?.message || "Failed to dispatch test email",
+        recipient: testEmailAddress,
+        subject: "Ana // Circadian Check-in",
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
+  const handleUpdateSheetsConfig = (updates: Partial<SheetsSyncConfig>) => {
+    const updated = { ...sheetsConfig, ...updates };
+    setSheetsConfig(updated);
+    saveSheetsConfig(updated);
+  };
+
+  const handleSyncToSheets = async () => {
+    setIsSyncingSheets(true);
+    setSheetsSyncResult(null);
+    try {
+      const res = await syncToGoogleSheets({
+        entries,
+        sessions,
+        glimmers,
+        userEmail: user?.email || undefined,
+        webhookUrl: sheetsConfig.webhookUrl,
+        spreadsheetId: sheetsConfig.spreadsheetId,
+      });
+      setSheetsSyncResult(res);
+      setSheetsConfig(prev => ({ ...prev, lastSyncedAt: Date.now() }));
+    } catch (err: any) {
+      setSheetsSyncResult({
+        success: false,
+        message: err?.message || "Failed to synchronize with Google Sheets",
+        rowsAppended: 0,
+        timestamp: new Date().toISOString(),
+      });
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  };
+
+  const handleExportSheetsCsv = () => {
+    const csvContent = exportToGoogleSheetsCsv(entries);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ana-google-sheets-export-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyAppsScript = () => {
+    const script = getGoogleAppsScriptTemplate();
+    navigator.clipboard.writeText(script);
+    setCopiedAppsScript(true);
+    setTimeout(() => setCopiedAppsScript(false), 2500);
   };
 
   const handleExportJSON = () => {
@@ -556,6 +671,206 @@ ${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
                   </div>
                 )}
               </div>
+
+              {/* Card 3: Direct Circadian Inactivity Email Notifications */}
+              <div className="bg-[#262626] border border-[#3D4028] p-4 rounded-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-white">
+                    <Mail className="w-4 h-4 text-[#A3A649]" />
+                    <span>DIRECT CIRCADIAN INACTIVITY EMAIL NOTIFICATIONS</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-xs bg-[#A3A649]/20 border border-[#A3A649]/50 text-[10px] text-[#A3A649] font-semibold">
+                    CLOUD SCHEDULER + SENDGRID/RESEND
+                  </span>
+                </div>
+
+                <p className="text-xs text-[#8C8C8C] leading-relaxed">
+                  When Cloud Scheduler runs its inactivity cron and detects &gt;20 hours without a journal reflection, Ana directly dispatches a compassionate circadian loop-closure email to your inbox with a 1-click magic link back into the Studio.
+                </p>
+
+                <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <div className="flex-1 space-y-1">
+                      <label className="text-[10px] text-[#8C8C8C] font-semibold uppercase block">
+                        Recipient Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={testEmailAddress}
+                        onChange={(e) => setTestEmailAddress(e.target.value)}
+                        placeholder="user@example.com"
+                        className="w-full bg-[#121212] border border-[#3D4028] rounded-xs px-2.5 py-1.5 text-xs text-white placeholder-[#8C8C8C]/50 focus:border-[#A3A649] outline-none font-mono"
+                      />
+                    </div>
+                    <div className="sm:self-end pt-1 sm:pt-0">
+                      <button
+                        onClick={handleSendTestEmail}
+                        disabled={isSendingTestEmail || !testEmailAddress}
+                        className="w-full sm:w-auto px-3 py-1.5 bg-[#AD3D30] hover:bg-[#AD3D30]/80 text-white rounded-xs text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        <Send className={`w-3.5 h-3.5 ${isSendingTestEmail ? "animate-pulse" : ""}`} />
+                        <span>{isSendingTestEmail ? "Dispatching..." : "Send Test Inactivity Email"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {emailTestResult && (
+                    <div className={`p-2.5 rounded-xs border text-xs space-y-1.5 ${
+                      emailTestResult.status === "error"
+                        ? "bg-[#AD3D30]/10 border-[#AD3D30] text-[#AD3D30]"
+                        : "bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981]"
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold flex items-center gap-1">
+                          {emailTestResult.status === "error" ? <AlertCircle className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+                          {emailTestResult.status === "error" ? "Dispatch Error" : "Email Notification Processed"}
+                        </span>
+                        <span className="text-[10px] font-mono text-[#8C8C8C]">
+                          Provider: {emailTestResult.provider}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#e2e8f0]">
+                        {emailTestResult.message}
+                      </p>
+                      {emailTestResult.htmlPreview && (
+                        <div className="pt-1">
+                          <button
+                            onClick={() => setShowEmailPreview(!showEmailPreview)}
+                            className="text-[10px] text-[#A3A649] underline cursor-pointer hover:text-white"
+                          >
+                            {showEmailPreview ? "Hide Email Preview" : "View Live Email HTML Preview"}
+                          </button>
+                          {showEmailPreview && (
+                            <div className="mt-2 p-2 bg-[#121212] border border-[#3D4028] rounded-xs max-h-60 overflow-y-auto">
+                              <div dangerouslySetInnerHTML={{ __html: emailTestResult.htmlPreview }} />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 4: Google Workspace: Dual-Mode Google Sheets Integration */}
+              <div className="bg-[#262626] border border-[#3D4028] p-4 rounded-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-white">
+                    <FileSpreadsheet className="w-4 h-4 text-[#A3A649]" />
+                    <span>GOOGLE WORKSPACE: DUAL-MODE GOOGLE SHEETS INTEGRATION</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-xs bg-[#10b981]/20 border border-[#10b981]/50 text-[10px] text-[#10b981] font-semibold">
+                    SHEETS API v4 + APPS SCRIPT
+                  </span>
+                </div>
+
+                <p className="text-xs text-[#8C8C8C] leading-relaxed">
+                  Export and synchronize your reflective prose, mood trajectories, sleep and tension telemetry directly into Google Sheets. Supports instant auto-sync on save or manual 1-click batch synchronization.
+                </p>
+
+                <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3">
+                  {/* Auto Sync Toggle */}
+                  <div className="flex items-center justify-between p-2 bg-[#121212] border border-[#3D4028] rounded-xs">
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-bold text-white block">Auto-Sync on Save</span>
+                      <span className="text-[10px] text-[#8C8C8C] block">
+                        Automatically dispatch new journal reflections to Google Sheets when saved
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={sheetsConfig.autoSync}
+                        onChange={(e) => handleUpdateSheetsConfig({ autoSync: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-[#262626] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#A3A649]"></div>
+                    </label>
+                  </div>
+
+                  {/* Webhook URL Input */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-[#8C8C8C] font-semibold uppercase block">
+                      Google Apps Script Webhook URL (Optional for Direct Live Sync)
+                    </label>
+                    <input
+                      type="url"
+                      value={sheetsConfig.webhookUrl}
+                      onChange={(e) => handleUpdateSheetsConfig({ webhookUrl: e.target.value })}
+                      placeholder="https://script.google.com/macros/s/AKfycb.../exec"
+                      className="w-full bg-[#121212] border border-[#3D4028] rounded-xs px-2.5 py-1.5 text-xs text-white placeholder-[#8C8C8C]/50 focus:border-[#A3A649] outline-none font-mono"
+                    />
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      onClick={handleSyncToSheets}
+                      disabled={isSyncingSheets}
+                      className="px-3 py-1.5 rounded-xs bg-[#A3A649] hover:bg-[#A3A649]/80 text-black text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <FileSpreadsheet className={`w-3.5 h-3.5 ${isSyncingSheets ? "animate-spin" : ""}`} />
+                      <span>{isSyncingSheets ? "Syncing..." : "Sync All Data to Google Sheets Now"}</span>
+                    </button>
+
+                    <button
+                      onClick={handleExportSheetsCsv}
+                      className="px-3 py-1.5 rounded-xs bg-[#262626] hover:bg-[#3D4028] text-white border border-[#3D4028] text-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download .CSV for Google Sheets</span>
+                    </button>
+                  </div>
+
+                  {/* Sync Feedback Result */}
+                  {sheetsSyncResult && (
+                    <div className={`p-2 rounded-xs border text-xs flex items-center justify-between ${
+                      sheetsSyncResult.success
+                        ? "bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981]"
+                        : "bg-[#AD3D30]/10 border-[#AD3D30] text-[#AD3D30]"
+                    }`}>
+                      <span>{sheetsSyncResult.message}</span>
+                      <span className="font-mono text-[10px] text-[#8C8C8C]">
+                        {sheetsSyncResult.rowsAppended} rows
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Collapsible Apps Script Setup Guide */}
+                  <div className="border-t border-[#3D4028] pt-2">
+                    <button
+                      onClick={() => setShowAppsScriptGuide(!showAppsScriptGuide)}
+                      className="text-xs text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-bold"
+                    >
+                      {showAppsScriptGuide ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      <span>How to link your private Google Sheet in 30 seconds</span>
+                    </button>
+
+                    {showAppsScriptGuide && (
+                      <div className="mt-2 p-3 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2 text-xs">
+                        <ol className="list-decimal list-inside space-y-1 text-[#8C8C8C] text-[11px] leading-relaxed">
+                          <li>Open your private Google Sheet in your Google Workspace or Personal account.</li>
+                          <li>Click <strong className="text-white">Extensions &gt; Apps Script</strong>.</li>
+                          <li>Copy and paste the script below, then click <strong className="text-white">Save</strong>.</li>
+                          <li>Click <strong className="text-white">Deploy &gt; New deployment</strong>, select <strong className="text-white">Web app</strong>, set access to <strong className="text-white">Anyone</strong>, and deploy.</li>
+                          <li>Paste your generated Web App URL into the field above!</li>
+                        </ol>
+
+                        <div className="pt-1 flex items-center justify-between">
+                          <span className="text-[10px] text-[#8C8C8C] font-mono">10-Line Lightweight Relay Script</span>
+                          <button
+                            onClick={handleCopyAppsScript}
+                            className="px-2 py-1 bg-[#262626] hover:bg-[#3D4028] text-[#A3A649] border border-[#3D4028] rounded-xs text-[10px] font-bold flex items-center gap-1 cursor-pointer"
+                          >
+                            {copiedAppsScript ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                            <span>{copiedAppsScript ? "Copied to Clipboard!" : "Copy Apps Script"}</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -639,13 +954,21 @@ ${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
                   </div>
                 </div>
 
-                <div className="pt-2">
+                <div className="pt-2 flex flex-wrap items-center gap-3">
                   <button
                     onClick={handleExportJSON}
                     className="px-4 py-2 rounded-xs bg-[#AD3D30] hover:bg-[#AD3D30]/80 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Download JSON Backup</span>
+                  </button>
+
+                  <button
+                    onClick={handleExportSheetsCsv}
+                    className="px-4 py-2 rounded-xs bg-[#262626] hover:bg-[#3D4028] text-[#A3A649] border border-[#3D4028] text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5" />
+                    <span>Export to Google Sheets (.CSV)</span>
                   </button>
                 </div>
               </div>
