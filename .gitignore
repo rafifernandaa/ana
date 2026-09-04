@@ -5,5 +5,6 @@ coverage/
 .DS_Store
 *.log
 *.zip
+0.26.0
 .env*
 !.env.example

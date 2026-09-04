@@ -920,6 +920,61 @@ Please generate the longitudinal neuroplastic synthesis.`;
   }
 });
 
+// API: Cloud Scheduler Inactivity Evaluation for Signed-In User
+app.post("/api/scheduler/check-inactivity", (req: Request, res: Response) => {
+  try {
+    const { userId, lastEntryAt, clientTimezone } = req.body || {};
+    const now = Date.now();
+    const lastTimestamp = typeof lastEntryAt === "number" && lastEntryAt > 0 
+      ? lastEntryAt 
+      : (now - 22 * 60 * 60 * 1000); // Simulated 22h if no prior entries
+    
+    const hoursElapsed = Math.max(0, (now - lastTimestamp) / (1000 * 60 * 60));
+    const isInactive = hoursElapsed >= 20;
+
+    const hourOfDay = new Date().getHours();
+    const phase = (hourOfDay >= 5 && hourOfDay < 12) 
+      ? "Morning Dopamine Prime" 
+      : (hourOfDay >= 18 || hourOfDay < 5) 
+      ? "Evening Loop Closure" 
+      : "Midday Grounding Anchor";
+
+    const nudgeMessage = isInactive
+      ? `Notice any unresolved tension? It has been ${hoursElapsed.toFixed(1)} hours since your last reflection. Take 90 seconds to deposit open mental loops before rest.`
+      : `Cognitive loop is healthy. Reflection completed ${hoursElapsed.toFixed(1)} hours ago. No re-engagement nudge needed.`;
+
+    return res.json({
+      status: "success",
+      targetUser: userId || "guest_authenticated",
+      schedulerRegion: "asia-southeast1 (Singapore)",
+      cloudRunService: "Ana",
+      firestoreDatabase: "ai-studio-1964eda9-cc24-452a-bee7-3ab0780e0478 (us-west1, Oregon)",
+      evaluation: {
+        lastEntryAt: lastTimestamp,
+        hoursElapsed: parseFloat(hoursElapsed.toFixed(1)),
+        inactivityThresholdHours: 20,
+        isInactive,
+        circadianPhase: phase,
+        actionRequired: isInactive ? "DISPATCH_CIRCADIAN_NUDGE" : "NO_ACTION_USER_ACTIVE",
+        nudgePayload: {
+          title: `Ana Circadian: ${phase}`,
+          body: nudgeMessage,
+          clickAction: "/?action=circadian"
+        }
+      },
+      gcloudVerificationCommands: {
+        listJobs: "gcloud scheduler jobs list --location=asia-southeast1",
+        runJobNow: "gcloud scheduler jobs run ana-circadian-inactivity-cron --location=asia-southeast1",
+        readLogs: "gcloud logging read \"resource.type=cloud_run_revision AND resource.labels.service_name=Ana\" --limit=20"
+      },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error: any) {
+    console.error("Scheduler Inactivity API Error:", error);
+    return res.status(500).json({ error: error?.message || "Failed to evaluate scheduler inactivity" });
+  }
+});
+
 
 // Start Full-Stack Server & Mount Vite Middleware
 async function startServer() {

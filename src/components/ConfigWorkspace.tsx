@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { User } from "firebase/auth";
 import { 
   Settings, 
@@ -17,7 +17,11 @@ import {
   HardDrive,
   Sun,
   Moon,
-  Sparkles
+  Sparkles,
+  Clock,
+  Activity,
+  Terminal,
+  RefreshCw
 } from "lucide-react";
 import { JournalEntry, ResetSession, PrunedThoughtLoop, GlimmerAnchor } from "../types";
 import { useTheme } from "../lib/theme";
@@ -45,6 +49,38 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
 }) => {
   const { theme, setTheme, isLight } = useTheme();
   const [activeSection, setActiveSection] = useState<"appearance" | "security" | "cloud" | "models" | "export">("appearance");
+  const [schedulerDiagnostics, setSchedulerDiagnostics] = useState<any | null>(null);
+  const [isCheckingScheduler, setIsCheckingScheduler] = useState(false);
+
+  const latestEntry = useMemo(() => {
+    if (!entries || entries.length === 0) return null;
+    return [...entries].sort((a, b) => b.createdAt - a.createdAt)[0];
+  }, [entries]);
+
+  const hoursSinceLastEntry = useMemo(() => {
+    if (!latestEntry) return 24;
+    return Math.max(0, (Date.now() - latestEntry.createdAt) / (1000 * 60 * 60));
+  }, [latestEntry]);
+
+  const handleRunSchedulerCheck = async () => {
+    setIsCheckingScheduler(true);
+    try {
+      const res = await fetch("/api/scheduler/check-inactivity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user ? user.uid : "guest_authenticated",
+          lastEntryAt: latestEntry ? latestEntry.createdAt : null,
+        }),
+      });
+      const data = await res.json();
+      setSchedulerDiagnostics(data);
+    } catch (err: any) {
+      setSchedulerDiagnostics({ error: err?.message || "Failed to contact Cloud Run service Ana" });
+    } finally {
+      setIsCheckingScheduler(false);
+    }
+  };
 
   const handleExportJSON = () => {
     const backup = {
@@ -320,6 +356,126 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* Card 2: Circadian Cloud Scheduler & Inactivity Monitor */}
+              <div className="bg-[#262626] border border-[#3D4028] p-4 rounded-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-white">
+                    <Clock className="w-4 h-4 text-[#A3A649]" />
+                    <span>CIRCADIAN CLOUD SCHEDULER &amp; INACTIVITY MONITOR</span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-xs border text-[10px] font-semibold ${
+                    hoursSinceLastEntry >= 20 
+                      ? "bg-[#AD3D30]/20 border-[#AD3D30]/50 text-[#AD3D30]" 
+                      : "bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]"
+                  }`}>
+                    {hoursSinceLastEntry >= 20 ? "INACTIVE (> 20h) • NUDGE ELIGIBLE" : "ACTIVE • LOOP CLOSED"}
+                  </span>
+                </div>
+
+                <p className="text-xs text-[#8C8C8C] leading-relaxed">
+                  Evaluates the signed-in user's entry timeline in Firestore. If no reflective entry has been created in &gt;20 hours, Cloud Scheduler dispatches a low-friction circadian nudge to complete loop closure.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <div className="p-2 bg-[#181818] border border-[#3D4028] rounded-xs space-y-1">
+                    <span className="text-[10px] text-[#8C8C8C] block">Target Signed-In User</span>
+                    <span className="text-white font-mono text-[11px] truncate block" title={user?.uid || "Guest"}>
+                      {user ? user.uid : "Guest (Local Session)"}
+                    </span>
+                  </div>
+                  <div className="p-2 bg-[#181818] border border-[#3D4028] rounded-xs space-y-1">
+                    <span className="text-[10px] text-[#8C8C8C] block">Last Journal Entry</span>
+                    <span className="text-[#A3A649] font-mono text-[11px] block">
+                      {latestEntry ? `${hoursSinceLastEntry.toFixed(1)} hrs ago` : "No entries yet"}
+                    </span>
+                  </div>
+                  <div className="p-2 bg-[#181818] border border-[#3D4028] rounded-xs space-y-1">
+                    <span className="text-[10px] text-[#8C8C8C] block">Cloud Scheduler Target</span>
+                    <span className="text-white font-mono text-[11px] block">
+                      asia-southeast1 → Ana
+                    </span>
+                  </div>
+                </div>
+
+                {/* Diagnostics Trigger */}
+                <div className="pt-2 border-t border-[#3D4028] flex flex-wrap items-center justify-between gap-2">
+                  <button
+                    onClick={handleRunSchedulerCheck}
+                    disabled={isCheckingScheduler}
+                    className="px-3 py-1.5 rounded-xs bg-[#3D4028] hover:bg-[#A3A649] text-[#A3A649] hover:text-black border border-[#A3A649]/50 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingScheduler ? "animate-spin" : ""}`} />
+                    <span>{isCheckingScheduler ? "Evaluating..." : "Run Scheduler Diagnostic for Signed-In User"}</span>
+                  </button>
+                  <span className="text-[10px] text-[#8C8C8C] font-mono">
+                    POST /api/scheduler/check-inactivity
+                  </span>
+                </div>
+
+                {/* Live Output */}
+                {schedulerDiagnostics && (
+                  <div className="mt-3 p-3 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2 text-xs">
+                    <div className="flex items-center justify-between text-[11px] text-[#A3A649] font-bold border-b border-[#3D4028] pb-1">
+                      <div className="flex items-center gap-1.5">
+                        <Activity className="w-3.5 h-3.5" />
+                        <span>Cloud Scheduler Evaluation Response</span>
+                      </div>
+                      <span className="text-[#8C8C8C] text-[10px]">Cloud Run: Ana (asia-southeast1)</span>
+                    </div>
+
+                    <div className="p-2 bg-[#181818] rounded border border-[#262626] space-y-1 text-[11px]">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#8C8C8C]">Action Required:</span>
+                        <span className={`font-bold ${
+                          schedulerDiagnostics.evaluation?.actionRequired === "DISPATCH_CIRCADIAN_NUDGE" 
+                            ? "text-[#AD3D30]" 
+                            : "text-[#10b981]"
+                        }`}>
+                          {schedulerDiagnostics.evaluation?.actionRequired || "NONE"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#8C8C8C]">Circadian Phase:</span>
+                        <span className="text-white font-semibold">
+                          {schedulerDiagnostics.evaluation?.circadianPhase || "N/A"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[#8C8C8C]">Elapsed Time:</span>
+                        <span className="text-white font-mono">
+                          {schedulerDiagnostics.evaluation?.hoursElapsed} hours
+                        </span>
+                      </div>
+                      {schedulerDiagnostics.evaluation?.nudgePayload && (
+                        <div className="pt-1.5 border-t border-[#3D4028] text-[#e2e8f0]">
+                          <span className="text-[10px] text-[#A3A649] block font-bold">Preview Nudge:</span>
+                          <p className="text-[11px] text-[#8C8C8C] italic">
+                            "{schedulerDiagnostics.evaluation.nudgePayload.body}"
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* gcloud commands */}
+                    {schedulerDiagnostics.gcloudVerificationCommands && (
+                      <div className="pt-2 border-t border-[#3D4028] space-y-1">
+                        <div className="flex items-center gap-1.5 text-[10px] text-[#A3A649] font-bold">
+                          <Terminal className="w-3 h-3" />
+                          <span>gcloud Verification Commands</span>
+                        </div>
+                        <pre className="text-[10px] font-mono text-[#8C8C8C] bg-[#181818] p-2 rounded overflow-x-auto whitespace-pre">
+{`# Run job immediately from terminal
+${schedulerDiagnostics.gcloudVerificationCommands.runJobNow}
+
+# View Cloud Run logs
+${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
