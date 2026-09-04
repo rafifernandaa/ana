@@ -21,7 +21,9 @@ import {
   Clock,
   Activity,
   Terminal,
-  RefreshCw
+  RefreshCw,
+  Bell,
+  Check
 } from "lucide-react";
 import { JournalEntry, ResetSession, PrunedThoughtLoop, GlimmerAnchor } from "../types";
 import { useTheme } from "../lib/theme";
@@ -51,6 +53,40 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
   const [activeSection, setActiveSection] = useState<"appearance" | "security" | "cloud" | "models" | "export">("appearance");
   const [schedulerDiagnostics, setSchedulerDiagnostics] = useState<any | null>(null);
   const [isCheckingScheduler, setIsCheckingScheduler] = useState(false);
+  const [browserNotificationPerm, setBrowserNotificationPerm] = useState<NotificationPermission>(
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
+  );
+  const [testNotificationSent, setTestNotificationSent] = useState(false);
+
+  const handleEnableNotifications = async () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      try {
+        const perm = await Notification.requestPermission();
+        setBrowserNotificationPerm(perm);
+        if (perm === "granted") {
+          new Notification("Ana Circadian: Notifications Enabled", {
+            body: "You are connected! Ana will gently nudge you if you have not journaled in over 20 hours.",
+          });
+        }
+      } catch (e) {
+        console.warn("Notification permission request error:", e);
+      }
+    }
+  };
+
+  const handleSendTestNotification = () => {
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification("Ana Circadian: Evening Loop Closure", {
+          body: `Notice any unresolved tension? It has been ${hoursSinceLastEntry.toFixed(1)} hours since your last reflection. Take 90 seconds to deposit open mental loops.`,
+        });
+        setTestNotificationSent(true);
+        setTimeout(() => setTestNotificationSent(false), 3000);
+      } else {
+        handleEnableNotifications();
+      }
+    }
+  };
 
   const latestEntry = useMemo(() => {
     if (!entries || entries.length === 0) return null;
@@ -396,6 +432,49 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
                     <span className="text-white font-mono text-[11px] block">
                       asia-southeast1 → Ana
                     </span>
+                  </div>
+                </div>
+
+                {/* Device Notification Delivery Sub-Card */}
+                <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-white font-bold text-xs">
+                      <Bell className="w-3.5 h-3.5 text-[#A3A649]" />
+                      <span>Device Push Notification Delivery (Web Notification API)</span>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                      browserNotificationPerm === "granted"
+                        ? "bg-[#10b981]/20 text-[#10b981] border border-[#10b981]/40"
+                        : browserNotificationPerm === "denied"
+                        ? "bg-[#AD3D30]/20 text-[#AD3D30] border border-[#AD3D30]/40"
+                        : "bg-[#262626] text-[#8C8C8C] border border-[#3D4028]"
+                    }`}>
+                      {browserNotificationPerm === "granted" ? "ACTIVE • PERMISSION GRANTED" : browserNotificationPerm === "denied" ? "BLOCKED IN BROWSER" : "NOT CONFIGURED YET"}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-[#8C8C8C] leading-relaxed">
+                    When Cloud Scheduler triggers during the morning prime or evening wind-down window, Ana sends this circadian loop-closure nudge directly to your desktop or mobile screen.
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    {browserNotificationPerm !== "granted" ? (
+                      <button
+                        onClick={handleEnableNotifications}
+                        className="px-3 py-1.5 rounded-xs bg-[#A3A649] hover:bg-[#A3A649]/80 text-black text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        <span>Enable Device Notifications</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleSendTestNotification}
+                        className="px-3 py-1.5 rounded-xs bg-[#10b981] hover:bg-[#10b981]/80 text-black text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        {testNotificationSent ? <Check className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+                        <span>{testNotificationSent ? "Notification Sent!" : "Send Test Notification to This Screen"}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 

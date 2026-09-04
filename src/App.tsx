@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, signInWithGoogle, logOutUser } from "./lib/firebase";
 import { 
@@ -39,7 +39,7 @@ import { SynapticPruningModal } from "./components/SynapticPruningModal";
 import { GlimmerVaultModal } from "./components/GlimmerVaultModal";
 import { SecurityArchitectureModal } from "./components/SecurityArchitectureModal";
 import { SettingsModal } from "./components/SettingsModal";
-import { Sparkles, AlertCircle } from "lucide-react";
+import { Sparkles, AlertCircle, Clock } from "lucide-react";
 import { useTheme } from "./lib/theme";
 
 export default function App() {
@@ -148,6 +148,17 @@ export default function App() {
   const [layoutMode, setLayoutMode] = useState<"split" | "journal_focus" | "ai_focus">("split");
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  // Circadian Inactivity Banner State
+  const [showInactivityBanner, setShowInactivityBanner] = useState(true);
+
+  const hoursSinceLastJournal = useMemo(() => {
+    if (!entries || entries.length === 0) return 24;
+    const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
+    return Math.max(0, (Date.now() - sorted[0].createdAt) / (1000 * 60 * 60));
+  }, [entries]);
+
+  const isUserInactiveForJournal = hoursSinceLastJournal >= 20;
 
   // Helper to generate a fresh entry
   const createNewBlankEntry = useCallback((userId: string): JournalEntry => {
@@ -506,6 +517,37 @@ export default function App() {
               >
                 ✕
               </button>
+            </div>
+          )}
+
+          {/* Circadian Inactivity Nudge Banner (Re-engagement notification) */}
+          {isUserInactiveForJournal && showInactivityBanner && (
+            <div className="bg-[#3D4028]/90 border-b border-[#A3A649]/60 px-4 py-2 text-xs text-[#e2e8f0] flex items-center justify-between font-mono shrink-0 animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-2 max-w-4xl">
+                <Clock className="w-4 h-4 text-[#A3A649] shrink-0 animate-pulse" />
+                <span>
+                  <strong className="text-[#A3A649]">Circadian Loop Closure:</strong> It has been {hoursSinceLastJournal.toFixed(0)}h since your last reflection. Notice any unresolved mental tension? Take 90 seconds to deposit open loops.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => {
+                    handleNewEntry();
+                    setActiveNavTab("studio");
+                    setShowInactivityBanner(false);
+                  }}
+                  className="px-2.5 py-1 bg-[#A3A649] hover:bg-[#A3A649]/80 text-black font-bold rounded-xs text-[11px] transition-all cursor-pointer"
+                >
+                  Deposit Open Loops
+                </button>
+                <button
+                  onClick={() => setShowInactivityBanner(false)}
+                  className="text-[#8C8C8C] hover:text-white font-bold px-1.5 cursor-pointer"
+                  title="Dismiss reminder"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )}
 
