@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { User } from "firebase/auth";
 import { NavTabId } from "./AetherHeader";
+import { useTheme } from "../lib/theme";
 
 interface RiceSidebarDockProps {
   activeTab: NavTabId;
@@ -62,6 +63,8 @@ export const RiceSidebarDock: React.FC<RiceSidebarDockProps> = ({
     ? user.displayName.charAt(0).toUpperCase() 
     : (user?.email ? user.email.charAt(0).toUpperCase() : "A");
 
+  const { isLight } = useTheme();
+
   return (
     <aside 
       id="aether-sidebar-dock"
@@ -73,10 +76,14 @@ export const RiceSidebarDock: React.FC<RiceSidebarDockProps> = ({
         {/* Logo box with subtle border */}
         <div 
           onClick={() => handleAction("dashboard")}
-          className="w-8 h-8 rounded-xs bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] flex items-center justify-center cursor-pointer transition-colors group"
-          title="Ana // Mindful System"
+          className="w-8 h-8 rounded-full bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] flex items-center justify-center cursor-pointer transition-all group p-1 overflow-hidden shadow-xs"
+          title="Ana // Neuroscience-Informed Journal"
         >
-          <div className="w-2.5 h-2.5 bg-[#A3A649] rounded-xs group-hover:scale-125 transition-transform" />
+          <img 
+            src={isLight ? "/assets/ana-logo-dark.png" : "/assets/ana-logo-light.png"} 
+            alt="Ana Logo" 
+            className="w-full h-full object-contain group-hover:scale-110 transition-transform" 
+          />
         </div>
 
         {/* Create New Entry (+) */}

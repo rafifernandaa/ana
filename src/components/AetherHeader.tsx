@@ -56,10 +56,15 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
       <div className="flex items-center gap-3">
         <div 
           onClick={() => onSelectTab?.("dashboard")}
-          className="cursor-pointer flex items-center gap-1.5 group"
+          className="cursor-pointer flex items-center gap-2 group"
+          title="Ana // Neuroscience-Informed Journal"
         >
-          <div className="w-5 h-5 rounded-xs bg-[#262626] border border-[#3D4028] flex items-center justify-center text-[#A3A649] group-hover:border-[#A3A649] transition-colors">
-            <span className="text-[11px] font-bold">A</span>
+          <div className="w-6 h-6 rounded-full bg-[#262626] border border-[#3D4028] flex items-center justify-center p-0.5 group-hover:border-[#A3A649] transition-all overflow-hidden shrink-0 shadow-xs">
+            <img 
+              src={isLight ? "/assets/ana-logo-dark.png" : "/assets/ana-logo-light.png"} 
+              alt="Ana Logo" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <div className="text-xs tracking-wider">
             <span className="font-bold text-white text-sm tracking-wide">Ana</span>
@@ -67,7 +72,7 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right Actions: Theme Toggle, Layout Toggle & Uplink Status */}
+      {/* Right Actions: Theme Toggle, Layout Toggle & User Auth */}
       <div className="flex items-center gap-2 sm:gap-3">
         {/* Light / Dark Mode Toggle Button */}
         <button
@@ -106,19 +111,6 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
           </span>
         </button>
 
-        {/* Uplink status pill */}
-        <div 
-          className="hidden xl:flex items-center gap-1.5 px-2 py-1 bg-[#121212] border border-[#3D4028] rounded-xs text-[9px] tracking-wider text-[#8C8C8C]"
-          title="Server Uplink & Cloud Firestore Sync"
-        >
-          <span className={`w-1.5 h-1.5 rounded-full ${isSaving ? "bg-[#AD3D30] animate-ping" : "bg-[#10b981]"}`} />
-          <span className="text-white">432.12.09.88</span>
-          <span className="text-[#3D4028]">//</span>
-          <span className="text-[#A3A649]">GEMINI_3.6</span>
-          <span className="text-[#3D4028]">//</span>
-          <span className="text-[#10b981]">STABLE</span>
-        </div>
-
         {/* User Account / Sign In */}
         <button
           id="user-auth-trigger"
@@ -127,7 +119,7 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
         >
           {user ? (
             <>
-              <div className="w-2 h-2 rounded-full bg-[#10b981]" />
+              <div className={`w-2 h-2 rounded-full ${isSaving ? "bg-[#AD3D30] animate-ping" : "bg-[#10b981]"}`} />
               <span className="max-w-[80px] truncate text-[10px] text-[#A3A649]">
                 {user.displayName || user.email?.split("@")[0] || "User"}
               </span>
