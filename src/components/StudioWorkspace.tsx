@@ -26,8 +26,10 @@ import {
   ChevronDown,
   Pin,
   PinOff,
-  BarChart3
+  BarChart3,
+  Camera
 } from "lucide-react";
+import { HandwrittenCaptureModal } from "./HandwrittenCaptureModal";
 import { 
   JournalEntry, 
   ChatMessage, 
@@ -92,12 +94,30 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   const [isExtractingTelemetry, setIsExtractingTelemetry] = useState(false);
   const [chatMode, setChatMode] = useState<"reflect" | "brainstorm" | "mentor">("reflect");
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isHandwrittenModalOpen, setIsHandwrittenModalOpen] = useState<boolean>(false);
 
   // Collapsible Panels State (Each of them can be minimized as requested)
   const [isJournalCollapsed, setIsJournalCollapsed] = useState<boolean>(layoutMode === "ai_focus");
   const [isAiCollapsed, setIsAiCollapsed] = useState<boolean>(layoutMode === "journal_focus");
 
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  const handleInsertHandwrittenText = (transcribedText: string, attachedImages: string[]) => {
+    const existingContent = currentEntry.content.trim();
+    const updatedContent = existingContent 
+      ? `${existingContent}\n\n${transcribedText}`
+      : transcribedText;
+    
+    const existingImages = currentEntry.attachedHandwrittenImages || [];
+    const updated = {
+      ...currentEntry,
+      content: updatedContent,
+      attachedHandwrittenImages: [...existingImages, ...attachedImages],
+      updatedAt: Date.now(),
+    };
+    setCurrentEntry(updated);
+    onSave(updated);
+  };
 
   // Synchronize when entry changes from parent
   useEffect(() => {
@@ -425,6 +445,17 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Scan Handwritten Journal button */}
+                <button
+                  id="studio-scan-handwritten-btn"
+                  onClick={() => setIsHandwrittenModalOpen(true)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-xs bg-[#262626] hover:bg-[#3D4028] text-[#A3A649] hover:text-white border border-[#3D4028] hover:border-[#A3A649] text-[10px] font-semibold transition-all shadow-xs cursor-pointer"
+                  title="Capture Handwritten Journal with Google Cloud OCR & Cloud DLP"
+                >
+                  <Camera className="w-2.5 h-2.5" />
+                  <span className="hidden sm:inline">Handwritten OCR</span>
+                </button>
+
                 {/* Pin to Dashboard toggle */}
                 <button
                   id="studio-journal-pin-btn"
@@ -491,6 +522,29 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
 
             {/* Scrollable Journal Body */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#181818]">
+              {/* Attached Handwritten Pages Strip if any */}
+              {currentEntry.attachedHandwrittenImages && currentEntry.attachedHandwrittenImages.length > 0 && (
+                <div className="p-2.5 bg-[#262626] border border-[#3D4028] rounded-xs space-y-1.5 animate-in fade-in">
+                  <div className="flex items-center justify-between text-[10px] text-[#8C8C8C] font-bold">
+                    <span className="flex items-center gap-1 text-[#A3A649]">
+                      <Camera className="w-3 h-3" />
+                      ATTACHED HANDWRITTEN PAGES ({currentEntry.attachedHandwrittenImages.length})
+                    </span>
+                    <span className="font-mono text-[9px] text-[#8C8C8C]">gs://ana-handwritten-archives/</span>
+                  </div>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    {currentEntry.attachedHandwrittenImages.map((img, idx) => (
+                      <div key={idx} className="relative w-14 h-14 rounded-xs border border-[#3D4028] overflow-hidden shrink-0 group">
+                        <img src={img} alt={`Handwritten page ${idx + 1}`} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-0.5 left-0.5 text-[8px] bg-black/80 px-1 text-white">
+                          P{idx + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Title Input */}
               <div className="bg-[#262626] border border-[#3D4028] rounded-xs p-2.5 space-y-2">
                 {currentEntry.isPinned && (
@@ -891,6 +945,14 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
           </div>
         )}
       </section>
+
+      {/* Google Cloud Vision OCR & Cloud DLP Handwritten Capture Modal */}
+      <HandwrittenCaptureModal
+        isOpen={isHandwrittenModalOpen}
+        onClose={() => setIsHandwrittenModalOpen(false)}
+        onInsertText={handleInsertHandwrittenText}
+        userId={currentEntry.userId}
+      />
     </div>
   );
 };
