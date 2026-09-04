@@ -92,6 +92,7 @@ export interface JournalEntry {
   glimmersDiscovered?: string[];
   circadianPhase?: CircadianPhase;
   circadianCheckInId?: string;
+  attachedHandwrittenImages?: string[];
 }
 
 export interface GeminiTelemetryRequest {
