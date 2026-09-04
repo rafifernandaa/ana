@@ -391,44 +391,70 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   return (
     <div 
       id="studio-side-by-side-container"
-      className="flex-1 flex w-full h-full min-h-0 bg-[#121212] overflow-hidden font-mono select-none"
+      className="flex-1 flex flex-col md:flex-row w-full h-full min-h-0 bg-[#121212] overflow-hidden font-mono select-none"
     >
       {/* ==================================================================== */}
-      {/* PANEL 1: JOURNAL ENTRY (Can be minimized/expanded)                  */}
+      {/* PANEL 1: JOURNAL ENTRY (Above on mobile, can be minimized/expanded) */}
       {/* ==================================================================== */}
       <section 
         id="panel-journal"
-        className={`panel-smooth flex flex-col h-full overflow-hidden bg-[#181818] border-r border-[#3D4028] ${
+        className={`panel-smooth flex flex-col overflow-hidden bg-[#181818] border-b md:border-b-0 md:border-r border-[#3D4028] ${
           isJournalCollapsed 
-            ? "w-12 shrink-0 cursor-pointer bg-[#141414] hover:bg-[#1a1a1a]" 
-            : "flex-1 min-w-0"
+            ? "h-11 w-full md:h-full md:w-12 shrink-0 cursor-pointer bg-[#141414] hover:bg-[#1a1a1a]" 
+            : isAiCollapsed
+            ? "flex-1 w-full h-full min-h-0"
+            : "flex-1 w-full h-1/2 md:h-full min-h-0 min-w-0"
         }`}
         onClick={isJournalCollapsed ? handleToggleJournal : undefined}
       >
         {isJournalCollapsed ? (
-          /* COLLAPSED VERTICAL TAB */
-          <div className="flex flex-col items-center justify-between h-full py-4 px-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleJournal();
-              }}
-              className="w-7 h-7 rounded-xs bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] text-[#A3A649] flex items-center justify-center transition-colors cursor-pointer"
-              title="Expand Journal Entry Panel"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-
-            <div className="writing-vertical text-xs tracking-widest text-[#8C8C8C] hover:text-white font-semibold flex items-center gap-2">
-              <span className="text-[#AD3D30]">ana://</span>
-              <span>journal-entry.md</span>
-              <span className="text-[10px] text-[#A3A649] bg-[#262626] px-1 py-0.5 rounded-xs">
-                [{wordCount}w]
-              </span>
+          <>
+            {/* Mobile Collapsed Horizontal Bar */}
+            <div className="flex md:hidden flex-row items-center justify-between h-full px-3 py-1 bg-[#1a1a1a]">
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <span className="text-[#AD3D30]">ana://</span>
+                <span className="text-white">journal-entry.md</span>
+                <span className="text-[10px] text-[#A3A649] bg-[#262626] px-1.5 py-0.5 rounded-xs">
+                  [{wordCount}w]
+                </span>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleJournal();
+                }}
+                className="px-2 py-1 rounded-xs bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] text-[#A3A649] flex items-center gap-1.5 text-[10px] font-bold cursor-pointer"
+                title="Expand Journal Panel"
+              >
+                <Maximize2 className="w-3 h-3" />
+                <span>EXPAND JOURNAL</span>
+              </button>
             </div>
 
-            <div className="w-2 h-2 rounded-full bg-[#A3A649]" />
-          </div>
+            {/* Desktop Collapsed Vertical Tab */}
+            <div className="hidden md:flex flex-col items-center justify-between h-full py-4 px-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleJournal();
+                }}
+                className="w-7 h-7 rounded-xs bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] text-[#A3A649] flex items-center justify-center transition-colors cursor-pointer"
+                title="Expand Journal Entry Panel"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="writing-vertical text-xs tracking-widest text-[#8C8C8C] hover:text-white font-semibold flex items-center gap-2">
+                <span className="text-[#AD3D30]">ana://</span>
+                <span>journal-entry.md</span>
+                <span className="text-[10px] text-[#A3A649] bg-[#262626] px-1 py-0.5 rounded-xs">
+                  [{wordCount}w]
+                </span>
+              </div>
+
+              <div className="w-2 h-2 rounded-full bg-[#A3A649]" />
+            </div>
+          </>
         ) : (
           /* EXPANDED JOURNAL PANEL */
           <div className="flex flex-col h-full min-h-0">
@@ -618,13 +644,13 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
 
               {/* Main Content Textarea */}
-              <div className="bg-[#262626] border border-[#3D4028] rounded-xs flex flex-col flex-1 min-h-[360px] p-2.5">
+              <div className="bg-[#262626] border border-[#3D4028] rounded-xs flex flex-col flex-1 min-h-[200px] md:min-h-[360px] p-2.5">
                 <textarea
                   id="studio-journal-content"
                   value={currentEntry.content}
                   onChange={handleContentChange}
                   placeholder="Stream of consciousness, raw thoughts, or emotional venting... (Markdown supported)"
-                  className="w-full flex-1 min-h-[300px] bg-transparent text-[#e2e8f0] text-xs sm:text-sm font-mono leading-relaxed placeholder-[#8C8C8C]/40 focus:outline-hidden resize-none"
+                  className="w-full flex-1 min-h-[140px] md:min-h-[300px] bg-transparent text-[#e2e8f0] text-xs sm:text-sm font-mono leading-relaxed placeholder-[#8C8C8C]/40 focus:outline-hidden resize-none"
                 />
 
                 {/* Bottom stats footer */}
@@ -646,41 +672,67 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
       </section>
 
       {/* ==================================================================== */}
-      {/* PANEL 2: AI ASSISTANT (Can be minimized/expanded)                   */}
+      {/* PANEL 2: AI ASSISTANT (Bottom on mobile, can be minimized/expanded) */}
       {/* ==================================================================== */}
       <section 
         id="panel-ai"
-        className={`panel-smooth flex flex-col h-full overflow-hidden bg-[#181818] ${
+        className={`panel-smooth flex flex-col overflow-hidden bg-[#181818] ${
           isAiCollapsed 
-            ? "w-12 shrink-0 cursor-pointer bg-[#141414] hover:bg-[#1a1a1a]" 
-            : "flex-1 min-w-0"
+            ? "h-11 w-full md:h-full md:w-12 shrink-0 cursor-pointer bg-[#141414] hover:bg-[#1a1a1a]" 
+            : isJournalCollapsed
+            ? "flex-1 w-full h-full min-h-0"
+            : "flex-1 w-full h-1/2 md:h-full min-h-0 min-w-0"
         }`}
         onClick={isAiCollapsed ? handleToggleAi : undefined}
       >
         {isAiCollapsed ? (
-          /* COLLAPSED VERTICAL TAB */
-          <div className="flex flex-col items-center justify-between h-full py-4 px-1">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleToggleAi();
-              }}
-              className="w-7 h-7 rounded-xs bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] text-[#A3A649] flex items-center justify-center transition-colors cursor-pointer"
-              title="Expand AI Assistant Panel"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-
-            <div className="writing-vertical text-xs tracking-widest text-[#8C8C8C] hover:text-white font-semibold flex items-center gap-2">
-              <span className="text-[#A3A649]">ana://</span>
-              <span>ai-assistant.agent</span>
-              <span className="text-[10px] text-[#10b981] bg-[#262626] px-1 py-0.5 rounded-xs">
-                [ONLINE]
-              </span>
+          <>
+            {/* Mobile Collapsed Horizontal Bar */}
+            <div className="flex md:hidden flex-row items-center justify-between h-full px-3 py-1 bg-[#1a1a1a]">
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <span className="text-[#A3A649]">ana://</span>
+                <span className="text-white">ai-assistant.agent</span>
+                <span className="text-[10px] text-[#10b981] bg-[#262626] px-1.5 py-0.5 rounded-xs">
+                  [GEMINI]
+                </span>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleAi();
+                }}
+                className="px-2 py-1 rounded-xs bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] text-[#A3A649] flex items-center gap-1.5 text-[10px] font-bold cursor-pointer"
+                title="Expand AI Assistant Panel"
+              >
+                <Maximize2 className="w-3 h-3" />
+                <span>EXPAND AI</span>
+              </button>
             </div>
 
-            <div className="w-2 h-2 rounded-full bg-[#10b981]" />
-          </div>
+            {/* Desktop Collapsed Vertical Tab */}
+            <div className="hidden md:flex flex-col items-center justify-between h-full py-4 px-1">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleAi();
+                }}
+                className="w-7 h-7 rounded-xs bg-[#262626] border border-[#3D4028] hover:border-[#A3A649] text-[#A3A649] flex items-center justify-center transition-colors cursor-pointer"
+                title="Expand AI Assistant Panel"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+
+              <div className="writing-vertical text-xs tracking-widest text-[#8C8C8C] hover:text-white font-semibold flex items-center gap-2">
+                <span className="text-[#A3A649]">ana://</span>
+                <span>ai-assistant.agent</span>
+                <span className="text-[10px] text-[#10b981] bg-[#262626] px-1 py-0.5 rounded-xs">
+                  [ONLINE]
+                </span>
+              </div>
+
+              <div className="w-2 h-2 rounded-full bg-[#10b981]" />
+            </div>
+          </>
         ) : (
           /* EXPANDED AI ASSISTANT PANEL */
           <div className="flex flex-col h-full min-h-0">

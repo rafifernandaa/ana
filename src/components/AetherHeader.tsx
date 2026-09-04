@@ -1,6 +1,6 @@
 import React from "react";
 import { User } from "firebase/auth";
-import { Columns, LogIn, Sun, Moon } from "lucide-react";
+import { Columns, LogIn, Sun, Moon, Settings } from "lucide-react";
 import { useTheme } from "../lib/theme";
 
 export type NavTabId = "dashboard" | "studio" | "features" | "archive" | "settings";
@@ -16,6 +16,7 @@ interface AetherHeaderProps {
 }
 
 export const AetherHeader: React.FC<AetherHeaderProps> = ({
+  activeTab = "dashboard",
   onSelectTab,
   layoutMode,
   onToggleLayout,
@@ -52,33 +53,28 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
       id="aether-top-header"
       className="h-12 bg-[#181818] border-b border-[#3D4028] px-3 sm:px-4 flex items-center justify-between font-mono shrink-0 select-none z-30 shadow-md transition-colors"
     >
-      {/* Brand / Logo */}
-      <div className="flex items-center gap-3">
-        <div 
-          onClick={() => onSelectTab?.("dashboard")}
-          className="cursor-pointer flex items-center gap-2 group"
-          title="Ana // Neuroscience-Informed Journal"
-        >
-          <div className="w-6 h-6 rounded-full bg-[#262626] border border-[#3D4028] flex items-center justify-center p-0.5 group-hover:border-[#A3A649] transition-all overflow-hidden shrink-0 shadow-xs">
-            <img 
-              src={isLight ? "/assets/ana-logo-dark.png" : "/assets/ana-logo-light.png"} 
-              alt="Ana Logo" 
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <div className="text-xs tracking-wider">
-            <span className="font-bold text-white text-sm tracking-wide">Ana</span>
-          </div>
-        </div>
+      {/* Current Workspace Section Title (Logo brand removed per user requirement) */}
+      <div className="flex items-center gap-2">
+        <span className="text-[11px] sm:text-xs font-bold text-[#A3A649] tracking-wider uppercase">
+          {activeTab === "studio" 
+            ? "Journal // Studio" 
+            : activeTab === "features" 
+            ? "Mind Tools" 
+            : activeTab === "archive" 
+            ? "Entry Archive" 
+            : activeTab === "settings" 
+            ? "Settings" 
+            : "Dashboard"}
+        </span>
       </div>
 
-      {/* Right Actions: Theme Toggle, Layout Toggle & User Auth */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      {/* Right Actions: Theme Toggle, Layout Toggle, Settings & User Auth */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5">
         {/* Light / Dark Mode Toggle Button */}
         <button
           id="theme-mode-toggle-btn"
           onClick={handleThemeToggle}
-          className="px-2.5 py-1 bg-[#262626] hover:bg-[#3D4028] border border-[#3D4028] rounded-xs text-[10px] tracking-wider text-[#8C8C8C] hover:text-[#A3A649] transition-all flex items-center gap-1.5 cursor-pointer"
+          className="px-2 py-1 bg-[#262626] hover:bg-[#3D4028] border border-[#3D4028] rounded-xs text-[10px] tracking-wider text-[#8C8C8C] hover:text-[#A3A649] transition-all flex items-center gap-1.5 cursor-pointer"
           title={`Switch to ${isLight ? "Dark Void" : "Light Canvas"} Mode`}
           aria-label={`Toggle theme (currently ${theme})`}
         >
@@ -111,6 +107,20 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
           </span>
         </button>
 
+        {/* Settings Button */}
+        <button
+          id="header-settings-btn"
+          onClick={() => onSelectTab?.("settings")}
+          className={`p-1.5 rounded-xs border text-[10px] transition-all cursor-pointer ${
+            activeTab === "settings"
+              ? "bg-[#3D4028] border-[#A3A649] text-[#A3A649]"
+              : "bg-[#262626] hover:bg-[#3D4028] border-[#3D4028] text-[#8C8C8C] hover:text-white"
+          }`}
+          title="System Settings & Config"
+        >
+          <Settings className="w-3.5 h-3.5" />
+        </button>
+
         {/* User Account / Sign In */}
         <button
           id="user-auth-trigger"
@@ -120,7 +130,7 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
           {user ? (
             <>
               <div className={`w-2 h-2 rounded-full ${isSaving ? "bg-[#AD3D30] animate-ping" : "bg-[#10b981]"}`} />
-              <span className="max-w-[80px] truncate text-[10px] text-[#A3A649]">
+              <span className="max-w-[70px] sm:max-w-[90px] truncate text-[10px] text-[#A3A649]">
                 {user.displayName || user.email?.split("@")[0] || "User"}
               </span>
             </>

@@ -502,8 +502,8 @@ export default function App() {
       />
 
       {/* Main Workspace Frame */}
-      <div className="flex-1 flex min-w-0 min-h-0 overflow-hidden">
-        {/* Rice Sidebar Dock on the far left (5 Tabs: Dashboard, Studio, Features, Archive, Config) */}
+      <div className="flex-1 flex flex-col md:flex-row min-w-0 min-h-0 overflow-hidden relative pb-16 md:pb-0">
+        {/* Rice Sidebar Dock on the far left (Desktop) / Bottom Nav Bar (Mobile) */}
         <RiceSidebarDock
           activeTab={activeNavTab}
           onSelectTab={setActiveNavTab}
@@ -513,7 +513,6 @@ export default function App() {
           }}
           onOpenSettings={() => setActiveNavTab("settings")}
           user={user}
-          isSaving={isSaving}
         />
 
         {/* Workspace Column */}

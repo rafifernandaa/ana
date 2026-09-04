@@ -185,12 +185,12 @@ ${entry.aiSummary.reflectionQuestions.map(q => `- ${q}`).join("\n")}
   return (
     <div 
       id="archive-workspace-container"
-      className="flex-1 flex h-full min-h-0 bg-[#121212] overflow-hidden font-mono select-none"
+      className="flex-1 flex flex-col md:flex-row h-full min-h-0 bg-[#121212] overflow-hidden font-mono select-none"
     >
-      {/* Left List Pane (320px) */}
-      <aside className="w-80 bg-[#181818] border-r border-[#3D4028] flex flex-col h-full shrink-0">
+      {/* Top Carousel on Mobile / Left List Pane on Desktop */}
+      <aside className="w-full md:w-80 bg-[#181818] border-b md:border-b-0 md:border-r border-[#3D4028] flex flex-col shrink-0">
         {/* Header & Search */}
-        <div className="p-3 border-b border-[#3D4028] space-y-2.5">
+        <div className="p-2.5 sm:p-3 border-b border-[#3D4028] space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-xs font-bold text-white tracking-wider">
               <Archive className="w-3.5 h-3.5 text-[#A3A649]" />
@@ -283,9 +283,9 @@ ${entry.aiSummary.reflectionQuestions.map(q => `- ${q}`).join("\n")}
           )}
         </div>
 
-        {/* Sidebar Body: Entries List or Compact Statistics */}
+        {/* Sidebar Body: Entries List (Mobile Horizontal Carousel vs Desktop Vertical List) or Compact Statistics */}
         {archiveSidebarTab === "statistics" ? (
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto max-h-48 md:max-h-full">
             <ArchiveStatisticsView
               entries={entries}
               onSelectEntry={(entry) => {
@@ -298,71 +298,134 @@ ${entry.aiSummary.reflectionQuestions.map(q => `- ${q}`).join("\n")}
             />
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-            {filteredEntries.length === 0 ? (
-              <div className="text-center p-6 text-[#8C8C8C] text-xs space-y-1">
-                <FileText className="w-6 h-6 mx-auto text-[#3D4028]" />
-                <p>No entries found matching query</p>
-              </div>
-            ) : (
-              filteredEntries.map((e) => {
-                const isSelected = e.id === selectedEntry?.id;
-                const dateStr = new Date(e.createdAt).toLocaleDateString();
-                const words = e.content.trim() ? e.content.trim().split(/\s+/).length : 0;
-                return (
-                  <div
-                    key={e.id}
-                    onClick={() => {
-                      setSelectedEntryId(e.id);
-                      onSelectEntry(e);
-                      setMainPaneView("reader");
-                    }}
-                    className={`p-2.5 rounded-xs border transition-all cursor-pointer space-y-1 group ${
-                      isSelected
-                        ? "bg-[#262626] border-[#A3A649] ring-1 ring-[#A3A649]"
-                        : "bg-[#1c1c1c] border-[#3D4028] hover:border-[#8C8C8C]"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-[#8C8C8C]">{dateStr}</span>
-                      <span className="text-[#A3A649] capitalize">{e.mood}</span>
-                    </div>
-
-                    <h4 className="text-xs font-bold text-white truncate">
-                      {e.title || "Untitled Entry"}
-                    </h4>
-
-                    <p className="text-[11px] text-[#8C8C8C] line-clamp-2">
-                      {e.content || "Empty content buffer..."}
-                    </p>
-
-                    <div className="flex items-center justify-between pt-1 text-[9px] text-[#8C8C8C]">
-                      <span>{words} words</span>
-                      {e.tags.length > 0 && (
-                        <span className="truncate max-w-[120px]">
-                          #{e.tags.join(" #")}
+          <>
+            {/* MOBILE HORIZONTAL SCROLL CAROUSEL (Scroll to right, preview below) */}
+            <div 
+              id="archive-mobile-carousel"
+              className="flex md:hidden flex-row overflow-x-auto gap-2.5 p-2.5 scrollbar-thin snap-x snap-mandatory scroll-smooth"
+            >
+              {filteredEntries.length === 0 ? (
+                <div className="w-full text-center py-4 text-[#8C8C8C] text-xs">
+                  No entries found matching query
+                </div>
+              ) : (
+                filteredEntries.map((e) => {
+                  const isSelected = e.id === selectedEntry?.id;
+                  const dateStr = new Date(e.createdAt).toLocaleDateString();
+                  const words = e.content.trim() ? e.content.trim().split(/\s+/).length : 0;
+                  return (
+                    <div
+                      key={e.id}
+                      onClick={() => {
+                        setSelectedEntryId(e.id);
+                        onSelectEntry(e);
+                        setMainPaneView("reader");
+                      }}
+                      className={`w-64 shrink-0 snap-start p-2.5 rounded-xs border transition-all cursor-pointer space-y-1.5 group select-none ${
+                        isSelected
+                          ? "bg-[#262626] border-[#A3A649] ring-1 ring-[#A3A649] shadow-md"
+                          : "bg-[#1c1c1c] border-[#3D4028] hover:border-[#8C8C8C]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-[#8C8C8C] flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-[#A3A649]" />
+                          {dateStr}
                         </span>
-                      )}
+                        <span className="text-[#A3A649] bg-[#3D4028]/70 px-1.5 py-0.5 rounded-xs text-[9px] font-bold uppercase">
+                          {e.mood}
+                        </span>
+                      </div>
+
+                      <h4 className="text-xs font-bold text-white truncate">
+                        {e.title || "Untitled Entry"}
+                      </h4>
+
+                      <p className="text-[11px] text-[#8C8C8C] line-clamp-2 leading-relaxed">
+                        {e.content || "Empty reflection buffer..."}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-[#3D4028]/40 text-[9px] text-[#8C8C8C]">
+                        <span>{words} words</span>
+                        {e.tags.length > 0 && (
+                          <span className="truncate max-w-[120px] text-[#A3A649]">
+                            #{e.tags.slice(0, 2).join(" #")}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* DESKTOP VERTICAL LIST */}
+            <div className="hidden md:block flex-1 overflow-y-auto p-2 space-y-1.5">
+              {filteredEntries.length === 0 ? (
+                <div className="text-center p-6 text-[#8C8C8C] text-xs space-y-1">
+                  <FileText className="w-6 h-6 mx-auto text-[#3D4028]" />
+                  <p>No entries found matching query</p>
+                </div>
+              ) : (
+                filteredEntries.map((e) => {
+                  const isSelected = e.id === selectedEntry?.id;
+                  const dateStr = new Date(e.createdAt).toLocaleDateString();
+                  const words = e.content.trim() ? e.content.trim().split(/\s+/).length : 0;
+                  return (
+                    <div
+                      key={e.id}
+                      onClick={() => {
+                        setSelectedEntryId(e.id);
+                        onSelectEntry(e);
+                        setMainPaneView("reader");
+                      }}
+                      className={`p-2.5 rounded-xs border transition-all cursor-pointer space-y-1 group ${
+                        isSelected
+                          ? "bg-[#262626] border-[#A3A649] ring-1 ring-[#A3A649]"
+                          : "bg-[#1c1c1c] border-[#3D4028] hover:border-[#8C8C8C]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-[#8C8C8C]">{dateStr}</span>
+                        <span className="text-[#A3A649] capitalize">{e.mood}</span>
+                      </div>
+
+                      <h4 className="text-xs font-bold text-white truncate">
+                        {e.title || "Untitled Entry"}
+                      </h4>
+
+                      <p className="text-[11px] text-[#8C8C8C] line-clamp-2">
+                        {e.content || "Empty content buffer..."}
+                      </p>
+
+                      <div className="flex items-center justify-between pt-1 text-[9px] text-[#8C8C8C]">
+                        <span>{words} words</span>
+                        {e.tags.length > 0 && (
+                          <span className="truncate max-w-[120px]">
+                            #{e.tags.join(" #")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </>
         )}
       </aside>
 
-      {/* Right Reading & Preview Pane */}
+      {/* Main Preview Pane below carousel on mobile, on right on desktop */}
       <main className="flex-1 flex flex-col h-full min-w-0 bg-[#141414] overflow-hidden">
         {/* Top action bar */}
-        <div className="h-10 bg-[#1c1c1c] border-b border-[#3D4028] px-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-3">
+        <div className="h-10 bg-[#1c1c1c] border-b border-[#3D4028] px-2 sm:px-4 flex items-center justify-between shrink-0 overflow-x-auto scrollbar-none gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {/* View Mode Toggle: Reader vs Statistics */}
-            <div className="flex items-center bg-[#262626] border border-[#3D4028] rounded-xs p-0.5 text-[11px]">
+            <div className="flex items-center bg-[#262626] border border-[#3D4028] rounded-xs p-0.5 text-[10px] sm:text-[11px]">
               <button
                 type="button"
                 onClick={() => setMainPaneView("reader")}
-                className={`px-2.5 py-0.5 rounded-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-0.5 rounded-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                   mainPaneView === "reader"
                     ? "bg-[#3D4028] text-[#A3A649] font-bold border border-[#A3A649]"
                     : "text-[#8C8C8C] hover:text-white"
@@ -374,32 +437,32 @@ ${entry.aiSummary.reflectionQuestions.map(q => `- ${q}`).join("\n")}
               <button
                 type="button"
                 onClick={() => setMainPaneView("statistics")}
-                className={`px-2.5 py-0.5 rounded-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-0.5 rounded-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                   mainPaneView === "statistics"
                     ? "bg-[#3D4028] text-[#A3A649] font-bold border border-[#A3A649]"
                     : "text-[#8C8C8C] hover:text-white"
                 }`}
               >
                 <BarChart3 className="w-3 h-3" />
-                <span>Statistics</span>
+                <span>Stats</span>
               </button>
               <button
                 type="button"
                 id="archive-tab-synthesis"
                 onClick={() => setMainPaneView("synthesis")}
-                className={`px-2.5 py-0.5 rounded-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-0.5 rounded-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer ${
                   mainPaneView === "synthesis"
                     ? "bg-[#3D4028] text-[#A3A649] font-bold border border-[#A3A649]"
                     : "text-[#8C8C8C] hover:text-white"
                 }`}
               >
                 <Sparkles className="w-3 h-3 text-[#A3A649]" />
-                <span>AI Synthesis</span>
+                <span className="hidden xs:inline">Synthesis</span>
               </button>
             </div>
 
             {mainPaneView === "reader" && selectedEntry && (
-              <div className="flex items-center gap-2">
+              <div className="hidden lg:flex items-center gap-2">
                 <span className="text-[#AD3D30] font-bold text-xs">ana://</span>
                 <span className="text-xs font-bold text-white truncate max-w-sm">
                   {selectedEntry.title || "Untitled Entry"}
