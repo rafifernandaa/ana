@@ -366,7 +366,7 @@ export const HandwrittenCaptureModal: React.FC<HandwrittenCaptureModalProps> = (
 
                 <div className="flex items-center justify-between pt-1">
                   <p className="text-[11px] text-[#8C8C8C]">
-                    Protected against accidental exposure of personal emails, phone numbers, or private credentials.
+                    Protected against accidental exposure of personal names, emails, phone numbers, or private credentials.
                   </p>
 
                   <button
@@ -401,7 +401,7 @@ export const HandwrittenCaptureModal: React.FC<HandwrittenCaptureModalProps> = (
                     Auto-Redact Sensitive Info with Google Cloud DLP
                   </span>
                   <span className="text-[10px] text-[#8C8C8C] block">
-                    Automatically masks emails, phone numbers, and secrets in transcribed text
+                    Automatically masks personal names, emails, phone numbers, and secrets in transcribed text
                   </span>
                 </div>
               </div>

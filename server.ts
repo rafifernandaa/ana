@@ -1327,6 +1327,21 @@ function redactSensitiveData(text: string): DlpRedactionResult {
     return match.replace(cred, `[REDACTED_SECRET]`);
   });
 
+  // 6. PERSON_NAME (Titles & Contextual references per Google Cloud DLP spec)
+  const titleNameRegex = /\b(?:Mr\.|Mrs\.|Ms\.|Miss|Dr\.|Prof\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+  redacted = redacted.replace(titleNameRegex, (match, name) => {
+    findings.push({ infoType: "PERSON_NAME", snippet: match });
+    return match.replace(name, `[REDACTED_NAME]`);
+  });
+
+  const contextualNameRegex = /\b(with|to|met|spoke with|talked with|talked to|called|told|emailed|friend|boss|manager|colleague|coworker|partner|therapist|doctor|named)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+  redacted = redacted.replace(contextualNameRegex, (match, prefix, name) => {
+    const nonNames = ["I", "The", "A", "An", "My", "Our", "We", "He", "She", "It", "They", "Today", "Yesterday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    if (nonNames.includes(name)) return match;
+    findings.push({ infoType: "PERSON_NAME", snippet: name });
+    return `${prefix} [REDACTED_NAME]`;
+  });
+
   return {
     originalText: text,
     redactedText: redacted,
@@ -1414,7 +1429,8 @@ Guidelines:
 1. Transcribe the exact words written by the user. Preserve their original capitalization, paragraph breaks, bullet points, and structure.
 2. If text is crossed out or scribbled over, transcribe the author's final intended word.
 3. If dates, timestamps, or headers are written on the page, format them as clean Markdown headers (e.g. ## Date or ### Header).
-4. Do not summarize or add conversational banter. Return ONLY the transcribed text prose.`,
+${autoRedact ? "4. SENSITIVE DATA PROTECTION (Google Cloud DLP): Mask all specific personal names of people (individuals, friends, colleagues, doctors) by replacing them with [REDACTED_NAME]." : ""}
+5. Do not summarize or add conversational banter. Return ONLY the transcribed text prose.`,
     });
 
     const ocrResult = await generateContentWithFallback({
