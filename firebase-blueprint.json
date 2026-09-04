@@ -1,0 +1,157 @@
+{
+  "entities": {
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "User personal reflective journal entry with AI insights",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 200 },
+        "content": { "type": "string", "maxLength": 50000 },
+        "mood": { "type": "string", "maxLength": 50 },
+        "tags": { "type": "array" },
+        "isPinned": { "type": "boolean" },
+        "empiricalTelemetry": { "type": "object" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "content", "createdAt", "updatedAt"]
+    },
+    "ResetSession": {
+      "title": "ResetSession",
+      "description": "Guided somatic & cognitive stress reset session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "mode": { "type": "string", "enum": ["mini", "full"] },
+        "bodyMap": { "type": "object" },
+        "affectLabel": { "type": "string", "maxLength": 100 },
+        "writingContent": { "type": "string", "maxLength": 50000 },
+        "extractedDarkSentence": { "type": "string", "maxLength": 1000 },
+        "reframes": { "type": "array" },
+        "glimmer": { "type": "string", "maxLength": 1000 },
+        "beforeWord": { "type": "string", "maxLength": 100 },
+        "afterWord": { "type": "string", "maxLength": 100 },
+        "durationMs": { "type": "number" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["id", "userId", "mode", "writingContent", "createdAt", "updatedAt"]
+    },
+    "UserInteraction": {
+      "title": "UserInteraction",
+      "description": "Interaction prompt-response turn mirror",
+      "type": "object",
+      "properties": {
+        "interactionId": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "prompt": { "type": "string", "maxLength": 50000 },
+        "geminiResponse": { "type": "string", "maxLength": 50000 },
+        "timestamp": { "type": "number" }
+      },
+      "required": ["interactionId", "userId", "prompt", "timestamp"]
+    },
+    "PrunedThoughtLoop": {
+      "title": "PrunedThoughtLoop",
+      "description": "Synaptically pruned cognitive distortion replaced with a rewired constructive belief",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "oldDistortion": { "type": "string", "maxLength": 1000 },
+        "distortionCategory": { "type": "string", "maxLength": 100 },
+        "newRewiredBelief": { "type": "string", "maxLength": 1000 },
+        "dissolvedAt": { "type": "number" },
+        "sourceEntryId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "userId", "oldDistortion", "newRewiredBelief", "dissolvedAt"]
+    },
+    "GlimmerAnchor": {
+      "title": "GlimmerAnchor",
+      "description": "Polyvagal micro-moment of safety or joy anchored in memory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "text": { "type": "string", "maxLength": 1000 },
+        "category": { "type": "string", "maxLength": 50 },
+        "createdAt": { "type": "number" },
+        "sourceType": { "type": "string", "maxLength": 50 },
+        "isPinned": { "type": "boolean" }
+      },
+      "required": ["id", "userId", "text", "category", "createdAt"]
+    },
+    "CircadianEntry": {
+      "title": "CircadianEntry",
+      "description": "Circadian day-boundary check-in tracking sleep recovery, daily intentions, ambient state, and evening loop closing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "phase": { "type": "string", "enum": ["dawn_morning", "midday", "dusk_evening", "night_harbor"] },
+        "sleepQuality": { "type": "string", "maxLength": 50 },
+        "energyLevel": { "type": "number" },
+        "morningIntention": { "type": "string", "maxLength": 1000 },
+        "anticipatedFriction": { "type": "string", "maxLength": 1000 },
+        "groundingAnchor": { "type": "string", "maxLength": 1000 },
+        "loopClosedNotes": { "type": "string", "maxLength": 5000 },
+        "isLoopClosed": { "type": "boolean" },
+        "timestamp": { "type": "number" },
+        "dateKey": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "userId", "phase", "energyLevel", "timestamp", "dateKey"]
+    },
+    "PsychiatricDistillation": {
+      "title": "PsychiatricDistillation",
+      "description": "Psychiatric decentering analysis turning raw emotional venting into objective facts, circle of control, cognitive distortion reframes, and a micro-action anchor",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "rawVentText": { "type": "string", "maxLength": 50000 },
+        "facts": { "type": "array" },
+        "interpretations": { "type": "array" },
+        "inMyControl": { "type": "array" },
+        "outOfMyControl": { "type": "array" },
+        "distortions": { "type": "array" },
+        "microActionAnchor": { "type": "string", "maxLength": 1000 },
+        "groundingSighCompleted": { "type": "boolean" },
+        "createdAt": { "type": "number" },
+        "journalEntryId": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["id", "userId", "rawVentText", "microActionAnchor", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/entries/{entryId}": {
+      "schema": "JournalEntry",
+      "description": "User-isolated personal reflections"
+    },
+    "/users/{userId}/sessions/{sessionId}": {
+      "schema": "ResetSession",
+      "description": "User-isolated live somatic & cognitive stress reset sessions"
+    },
+    "/users/{userId}/pruned_loops/{loopId}": {
+      "schema": "PrunedThoughtLoop",
+      "description": "User-isolated synaptically pruned and dissolved thought loops"
+    },
+    "/users/{userId}/glimmers/{glimmerId}": {
+      "schema": "GlimmerAnchor",
+      "description": "User-isolated polyvagal safety micro-moments and sensory anchors"
+    },
+    "/users/{userId}/circadian_entries/{entryId}": {
+      "schema": "CircadianEntry",
+      "description": "User-isolated circadian day-boundary check-ins and loop closing records"
+    },
+    "/users/{userId}/psychiatric_distillations/{id}": {
+      "schema": "PsychiatricDistillation",
+      "description": "User-isolated psychiatric decentering and cognitive processing records"
+    },
+    "/users/{userId}/interactions/{interactionId}": {
+      "schema": "UserInteraction",
+      "description": "Audit and interaction logs for reflection operations"
+    }
+  }
+}

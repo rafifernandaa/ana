@@ -80,7 +80,7 @@ export const SecurityArchitectureModal: React.FC<SecurityArchitectureModalProps>
                   <tr>
                     <td className="p-2.5 font-medium text-slate-900">Planning & Reasoning</td>
                     <td className="p-2.5 text-slate-600">Model hallucination & API failover</td>
-                    <td className="p-2.5 text-emerald-700">4-model resilient fallback ladder (<code className="font-mono">gemini-3.6-flash</code>)</td>
+                    <td className="p-2.5 text-emerald-700">3-model resilient fallback ladder (<code className="font-mono">gemini-3.8-flash</code> - v3.6+ tier)</td>
                   </tr>
                   <tr>
                     <td className="p-2.5 font-medium text-slate-900">Tool Execution</td>
@@ -106,10 +106,10 @@ export const SecurityArchitectureModal: React.FC<SecurityArchitectureModalProps>
           <div className="space-y-2">
             <h3 className="font-semibold text-slate-900 text-sm flex items-center gap-2">
               <Database className="w-4 h-4 text-emerald-600" />
-              <span>2. Firestore User-Isolation Security Rules</span>
+              <span>2. Firestore User-Isolation Security Rules (Entries & Reset Sessions)</span>
             </h3>
             <p className="text-xs text-slate-600">
-              Every document query and mutation is bound strictly to the authenticated user's UID:
+              Every document query and mutation for both Reflections and Reset Sessions is bound strictly to the authenticated user's UID:
             </p>
             <div className="bg-slate-900 text-slate-100 p-3.5 rounded-xl font-mono text-xs overflow-x-auto">
               <pre>{`rules_version = '2';
@@ -118,6 +118,14 @@ service cloud.firestore {
     // User data isolation: only the authenticated owner can access
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /entries/{entryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /sessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
 
       match /interactions/{interactionId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -131,6 +139,7 @@ service cloud.firestore {
 }`}</pre>
             </div>
           </div>
+
 
           {/* Section 3: Secret Management & Fallback Strategy */}
           <div className="space-y-2">
@@ -148,7 +157,7 @@ service cloud.firestore {
               <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                 <p className="font-semibold text-slate-900">Resilient Fallback Ladder</p>
                 <p className="text-slate-600">
-                  Calls sequentially chain: <code className="font-mono">gemini-3.6-flash</code> → <code className="font-mono">gemini-3.1-flash-lite</code> → <code className="font-mono">gemini-flash-latest</code> → <code className="font-mono">gemini-3.7-flash</code>.
+                  Calls sequentially chain: <code className="font-mono">gemini-3.8-flash</code> → <code className="font-mono">gemini-3.7-flash</code> → <code className="font-mono">gemini-3.6-flash</code> (Strictly Gemini 3.6+ tier).
                 </p>
               </div>
             </div>

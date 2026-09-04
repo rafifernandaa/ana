@@ -2,21 +2,314 @@
 
 @layer base {
   :root {
+    --palette-red: #AD3D30;
+    --palette-dark-olive: #3D4028;
+    --palette-light-olive: #A3A649;
+    --palette-gray: #8C8C8C;
+    --palette-black: #262626;
+
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     --font-serif: 'Source Serif 4', Georgia, Cambria, 'Times New Roman', Times, serif;
   }
   
   body {
-    font-family: var(--font-sans);
-    color: #1e293b;
-    background-color: #f8fafc;
+    font-family: var(--font-mono);
+    color: #e2e8f0;
+    background-color: #1e1e1e;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
 }
 
+/* Custom Palette Utility Classes */
+.bg-rice-black {
+  background-color: #262626;
+}
+.bg-rice-dark {
+  background-color: #1a1a1a;
+}
+.bg-rice-olive-dark {
+  background-color: #3D4028;
+}
+.bg-rice-olive-light {
+  background-color: #A3A649;
+}
+.bg-rice-red {
+  background-color: #AD3D30;
+}
+.bg-rice-gray {
+  background-color: #8C8C8C;
+}
+
+.text-rice-red {
+  color: #AD3D30;
+}
+.text-rice-olive-light {
+  color: #A3A649;
+}
+.text-rice-gray {
+  color: #8C8C8C;
+}
+
+.border-rice-dark-olive {
+  border-color: #3D4028;
+}
+.border-rice-gray {
+  border-color: #8C8C8C;
+}
+.border-rice-red {
+  border-color: #AD3D30;
+}
+.border-rice-light-olive {
+  border-color: #A3A649;
+}
+
+/* Monospace & Serif Helpers */
+.font-mono {
+  font-family: var(--font-mono);
+}
 .font-serif {
   font-family: var(--font-serif);
+}
+.font-sans {
+  font-family: var(--font-sans);
+}
+
+/* Custom Thin Monospace Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+::-webkit-scrollbar-thumb {
+  background: #3D4028;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #A3A649;
+}
+
+/* ========================================================================== */
+/* LIGHT MODE DESIGN SYSTEM (Ana Light Canvas / Warm Neutral Paper)           */
+/* ========================================================================== */
+html.light,
+html.light body,
+.light {
+  color-scheme: light;
+  background-color: #F7F7F5;
+  color: #171815;
+}
+
+/* Light Theme Scrollbars */
+html.light ::-webkit-scrollbar-track,
+.light ::-webkit-scrollbar-track {
+  background: #F1F2EE;
+}
+html.light ::-webkit-scrollbar-thumb,
+.light ::-webkit-scrollbar-thumb {
+  background: #D0D4CA;
+}
+html.light ::-webkit-scrollbar-thumb:hover,
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #8F954E;
+}
+
+/* Base Surfaces in Light Mode */
+.light .bg-\[\#121212\] {
+  background-color: #F7F7F5 !important;
+}
+.light .bg-\[\#181818\] {
+  background-color: #F1F2EE !important;
+}
+.light .bg-\[\#1a1a1a\] {
+  background-color: #EBECE6 !important;
+}
+.light .bg-\[\#1c1c1c\] {
+  background-color: #F3F4F0 !important;
+}
+.light .bg-\[\#1e1e1e\] {
+  background-color: #F7F7F5 !important;
+}
+.light .bg-\[\#141414\] {
+  background-color: #EAEBE5 !important;
+}
+.light .bg-\[\#1f1f1f\] {
+  background-color: #F9FAF6 !important;
+}
+.light .bg-\[\#222222\] {
+  background-color: #FFFFFF !important;
+}
+.light .bg-\[\#262626\] {
+  background-color: #FFFFFF !important;
+}
+.light .bg-\[\#2c2c2c\] {
+  background-color: #FAFAF8 !important;
+}
+.light .bg-\[\#333333\] {
+  background-color: #E4E5DF !important;
+}
+.light .bg-\[\#40393A\] {
+  background-color: #EBE4E5 !important;
+}
+.light .bg-rice-black {
+  background-color: #FFFFFF !important;
+}
+.light .bg-rice-dark {
+  background-color: #F1F2EE !important;
+}
+.light .bg-rice-gray {
+  background-color: #E4E5DF !important;
+}
+
+/* Olive Accents in Light Mode */
+.light .bg-\[\#3D4028\] {
+  background-color: #E6EAD5 !important;
+  color: #383E14 !important;
+}
+.light .bg-\[\#A3A649\] {
+  background-color: #595F22 !important;
+  color: #FFFFFF !important;
+}
+.light .hover\:bg-\[\#3D4028\]:hover {
+  background-color: #DCE1C7 !important;
+}
+.light .hover\:bg-\[\#A3A649\]:hover {
+  background-color: #4D531C !important;
+}
+
+/* Red Accents in Light Mode */
+.light .bg-\[\#AD3D30\] {
+  background-color: #AD3D30 !important;
+  color: #FFFFFF !important;
+}
+.light .bg-\[\#AD3D30\] .text-white,
+.light .bg-\[\#AD3D30\] span,
+.light button.bg-\[\#AD3D30\],
+.light button.bg-\[\#AD3D30\] span {
+  color: #FFFFFF !important;
+}
+.light .hover\:bg-\[\#AD3D30\]:hover {
+  background-color: #933227 !important;
+}
+
+/* Borders in Light Mode */
+.light .border-\[\#3D4028\] {
+  border-color: #D6DAD0 !important;
+}
+.light .border-\[\#333333\] {
+  border-color: #DFE2D8 !important;
+}
+.light .border-\[\#444444\] {
+  border-color: #D0D4CA !important;
+}
+.light .border-\[\#735053\] {
+  border-color: #CBB4B6 !important;
+}
+.light .border-\[\#A3A649\] {
+  border-color: #7D8536 !important;
+}
+.light .border-rice-dark-olive {
+  border-color: #D6DAD0 !important;
+}
+.light .border-rice-gray {
+  border-color: #D6DAD0 !important;
+}
+
+/* Typography & Text Contrast in Light Mode */
+.light .text-white {
+  color: #171815 !important;
+}
+.light .text-\[\#e2e8f0\] {
+  color: #232520 !important;
+}
+.light .text-\[\#8C8C8C\] {
+  color: #5C5F53 !important;
+}
+.light .text-\[\#A3A649\] {
+  color: #4D541B !important;
+}
+.light .text-rice-gray {
+  color: #5C5F53 !important;
+}
+.light .text-rice-olive-light {
+  color: #4D541B !important;
+}
+.light .hover\:text-white:hover {
+  color: #0F100D !important;
+}
+.light .hover\:bg-\[\#262626\]:hover {
+  background-color: #ECEEE7 !important;
+}
+.light .hover\:bg-\[\#1a1a1a\]:hover {
+  background-color: #E2E3DC !important;
+}
+
+/* Forms, Inputs, and Textareas in Light Mode */
+.light input:not([type="checkbox"]):not([type="radio"]),
+.light textarea,
+.light select {
+  color: #171815 !important;
+  background-color: #FFFFFF !important;
+}
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #8F9387 !important;
+}
+.light input:focus,
+.light textarea:focus {
+  outline: none;
+  border-color: #7D8536 !important;
+}
+
+/* Markdown Specifics in Light Mode */
+.light .markdown-content strong {
+  color: #171815 !important;
+}
+.light .markdown-content p {
+  color: #232520 !important;
+}
+
+/* Empirical Telemetry Card in Light Mode */
+html.light #empirical-telemetry-empty-card,
+.light #empirical-telemetry-empty-card,
+[data-theme="light"] #empirical-telemetry-empty-card {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #1F2937 !important;
+}
+.light .markdown-content code {
+  background-color: #EAEBE5 !important;
+  border-color: #D6DAD0 !important;
+  color: #4B5218 !important;
+}
+.light .markdown-content blockquote {
+  background-color: rgba(94, 99, 45, 0.08) !important;
+  color: #424638 !important;
+  border-left-color: #AD3D30 !important;
+}
+.light .markdown-content h1,
+.light .markdown-content h2,
+.light .markdown-content h3 {
+  color: #4B5218 !important;
+}
+
+/* Modal Backdrops & Overlays in Light Mode */
+.light .bg-black\/75,
+.light .bg-black\/80,
+.light .bg-black\/70 {
+  background-color: rgba(22, 24, 19, 0.45) !important;
+}
+
+/* Status Indicator in Light Mode */
+.light .status-track {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+.light .status-txt {
+  color: #5C5F53 !important;
 }
 
 /* Markdown styling inside AI messages and summaries */
@@ -40,23 +333,115 @@
 }
 .markdown-content strong {
   font-weight: 600;
-  color: #0f172a;
+  color: #f1f5f9;
 }
 .markdown-content h1, .markdown-content h2, .markdown-content h3 {
   font-weight: 700;
   margin-top: 1rem;
   margin-bottom: 0.5rem;
-  color: #0f172a;
+  color: #A3A649;
 }
 .markdown-content blockquote {
-  border-left: 3px solid #cbd5e1;
+  border-left: 3px solid #AD3D30;
   padding-left: 0.85rem;
   font-style: italic;
-  color: #475569;
+  color: #8C8C8C;
+  background-color: rgba(61, 64, 40, 0.2);
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  border-radius: 0 4px 4px 0;
 }
 .markdown-content code {
-  background-color: #f1f5f9;
+  background-color: #262626;
+  border: 1px solid #3D4028;
+  color: #A3A649;
   padding: 0.15rem 0.35rem;
   border-radius: 0.25rem;
   font-size: 0.875em;
+  font-family: var(--font-mono);
 }
+
+/* Aether-Void Specific CSS Helpers */
+.writing-vertical {
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+}
+
+.status-track {
+  width: 4px;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.status-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 80%;
+  background: #A3A649;
+  animation: pulse-status 3s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-status {
+  0% { height: 40%; background: #3D4028; }
+  50% { height: 85%; background: #A3A649; }
+  100% { height: 60%; background: #AD3D30; }
+}
+
+.status-txt {
+  font-size: 8px;
+  letter-spacing: 0.15em;
+  opacity: 0.6;
+  writing-mode: vertical-lr;
+  transform: rotate(180deg);
+  margin-top: 6px;
+  font-weight: 700;
+  color: #8C8C8C;
+}
+
+/* Smooth Panel Transition */
+.panel-smooth {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ========================================================================== */
+/* ARCHIVE STATS COMPACT TILES (Light Mode White Background & High Contrast)  */
+/* ========================================================================== */
+html.light #archive-sidebar-statistics-compact > div:nth-of-type(2) > div,
+.light #archive-sidebar-statistics-compact > div:nth-of-type(2) > div,
+[data-theme="light"] #archive-sidebar-statistics-compact > div:nth-of-type(2) > div,
+html.light #archive-stat-tile-mood,
+html.light #archive-stat-tile-energy,
+html.light #archive-stat-tile-sleep,
+html.light #archive-stat-tile-habits,
+.light #archive-stat-tile-mood,
+.light #archive-stat-tile-energy,
+.light #archive-stat-tile-sleep,
+.light #archive-stat-tile-habits {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #1F2937 !important;
+}
+
+html.light #archive-sidebar-statistics-compact > div:nth-of-type(2) > div span.text-white,
+.light #archive-sidebar-statistics-compact > div:nth-of-type(2) > div span.text-white,
+html.light #archive-stat-tile-mood span.text-white,
+html.light #archive-stat-tile-energy span.text-white,
+html.light #archive-stat-tile-sleep span.text-white,
+html.light #archive-stat-tile-habits span.text-white {
+  color: #0F172A !important;
+}
+
+html.light #archive-sidebar-statistics-compact > div:nth-of-type(2) > div span.text-\[\#8C8C8C\],
+.light #archive-sidebar-statistics-compact > div:nth-of-type(2) > div span.text-\[\#8C8C8C\],
+html.light #archive-stat-tile-mood span.text-\[\#8C8C8C\],
+html.light #archive-stat-tile-energy span.text-\[\#8C8C8C\],
+html.light #archive-stat-tile-sleep span.text-\[\#8C8C8C\],
+html.light #archive-stat-tile-habits span.text-\[\#8C8C8C\] {
+  color: #64748B !important;
+}
+
+

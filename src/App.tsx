@@ -1,49 +1,163 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect, useCallback } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, signInWithGoogle, logOutUser } from "./lib/firebase";
 import { 
   subscribeToUserEntries, 
   saveJournalEntry, 
-  deleteJournalEntry 
+  deleteJournalEntry,
+  subscribeToUserSessions, 
+  saveResetSession, 
+  deleteResetSession,
+  subscribeToPrunedLoops, 
+  savePrunedLoop, 
+  deletePrunedLoop,
+  subscribeToGlimmers, 
+  saveGlimmerAnchor, 
+  deleteGlimmerAnchor,
+  subscribeToCircadianEntries, 
+  saveCircadianEntry, 
+  deleteCircadianEntry,
+  subscribeToPsychiatricDistillations, 
+  savePsychiatricDistillation, 
+  deletePsychiatricDistillation
 } from "./lib/journalService";
-import { JournalEntry } from "./types";
-import { Navbar } from "./components/Navbar";
-import { LandingHero } from "./components/LandingHero";
-import { JournalEditor } from "./components/JournalEditor";
-import { EntryHistorySidebar } from "./components/EntryHistorySidebar";
+import { 
+  JournalEntry, 
+  ResetSession, 
+  PrunedThoughtLoop, 
+  GlimmerAnchor, 
+  CircadianEntry, 
+  PsychiatricDistillation 
+} from "./types";
+import { DEFAULT_JOURNAL_ENTRIES } from "./data/defaultSeedEntries";
+import { RiceSidebarDock } from "./components/RiceSidebarDock";
+import { AetherHeader, NavTabId } from "./components/AetherHeader";
+import { TilingWindowManager } from "./components/TilingWindowManager";
+import { ResetRoomModal } from "./components/ResetRoomModal";
+import { ResetSessionViewerModal } from "./components/ResetSessionViewerModal";
+import { SynapticPruningModal } from "./components/SynapticPruningModal";
+import { GlimmerVaultModal } from "./components/GlimmerVaultModal";
 import { SecurityArchitectureModal } from "./components/SecurityArchitectureModal";
-import { Sparkles, Menu, ShieldCheck, AlertCircle, RefreshCw } from "lucide-react";
+import { SettingsModal } from "./components/SettingsModal";
+import { Sparkles, AlertCircle } from "lucide-react";
+import { useTheme } from "./lib/theme";
 
 export default function App() {
+  const { isLight } = useTheme();
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Journal entries state
-  const [entries, setEntries] = useState<JournalEntry[]>([]);
-  const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(null);
+  // Baseline data matching the user's reference layout
+  const initialDefaultEntry: JournalEntry = {
+    id: "entry-default",
+    userId: "guest",
+    title: "Untitled Entry",
+    content: "",
+    mood: "reflective",
+    tags: ["reflection", "clarity", "stress-reset"],
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    messages: [],
+    aiSummary: null,
+    isFavorite: false,
+  };
+
+  const defaultSessions: ResetSession[] = [
+    {
+      id: "session-1",
+      userId: "guest",
+      mode: "full",
+      bodyMap: { zones: ["shoulders"], intensity: 4 },
+      affectLabel: "Tension",
+      writingContent: "Workload feeling high.",
+      extractedDarkSentence: "I need to do it all now.",
+      reframes: [{ lens: "compassion", title: "Self Compassion", text: "Recognized I am doing my best.", rationale: "Pacing" }],
+      chosenReframeIndex: 0,
+      glimmer: "Gentle morning breeze through the window.",
+      beforeWord: "Overwhelmed",
+      afterWord: "Grounded",
+      durationMs: 180000,
+      createdAt: Date.now() - 86400000,
+      updatedAt: Date.now() - 86400000,
+      sourceEntryId: null,
+    },
+    {
+      id: "session-2",
+      userId: "guest",
+      mode: "full",
+      bodyMap: { zones: ["jaw"], intensity: 3 },
+      affectLabel: "Urgency",
+      writingContent: "Racing through the day.",
+      extractedDarkSentence: "If I pause, everything will unravel.",
+      reframes: [{ lens: "agency", title: "Present Control", text: "I can choose stillness right here.", rationale: "Presence" }],
+      chosenReframeIndex: 0,
+      glimmer: "A warm cup of tea.",
+      beforeWord: "Scattered",
+      afterWord: "Present",
+      durationMs: 180000,
+      createdAt: Date.now() - 172800000,
+      updatedAt: Date.now() - 172800000,
+      sourceEntryId: null,
+    },
+  ];
+
+  const defaultPrunedLoops: PrunedThoughtLoop[] = [
+    {
+      id: "loop-1",
+      userId: "guest",
+      oldDistortion: "I need to solve every problem right now or everything falls apart.",
+      distortionCategory: "catastrophizing",
+      newRewiredBelief: "I can only attend to the present moment. One deliberate step is enough.",
+      dissolvedAt: Date.now() - 86400000,
+    },
+    {
+      id: "loop-2",
+      userId: "guest",
+      oldDistortion: "If I rest, I am falling behind.",
+      distortionCategory: "should_statements",
+      newRewiredBelief: "Rest is active restoration, not idle neglect.",
+      dissolvedAt: Date.now() - 172800000,
+    },
+  ];
+
+  // Journal entries state (seeded with empirical longitudinal entries)
+  const [entries, setEntries] = useState<JournalEntry[]>(DEFAULT_JOURNAL_ENTRIES);
+  const [activeEntry, setActiveEntry] = useState<JournalEntry | null>(DEFAULT_JOURNAL_ENTRIES[0]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
 
-  // UI state
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  // Reset Room sessions state
+  const [sessions, setSessions] = useState<ResetSession[]>(defaultSessions);
+  const [isResetRoomOpen, setIsResetRoomOpen] = useState(false);
+  const [selectedSessionForView, setSelectedSessionForView] = useState<ResetSession | null>(null);
+
+  // Synaptic Pruning & Glimmer Vault state
+  const [prunedLoops, setPrunedLoops] = useState<PrunedThoughtLoop[]>(defaultPrunedLoops);
+  const [isPrunerOpen, setIsPrunerOpen] = useState(false);
+  const [glimmers, setGlimmers] = useState<GlimmerAnchor[]>([]);
+  const [isGlimmerVaultOpen, setIsGlimmerVaultOpen] = useState(false);
+
+  // Circadian & Decentering state
+  const [circadianEntries, setCircadianEntries] = useState<CircadianEntry[]>([]);
+  const [psychiatricDistillations, setPsychiatricDistillations] = useState<PsychiatricDistillation[]>([]);
+
+  // Workspace Navigation & Layout Mode
+  const [activeNavTab, setActiveNavTab] = useState<NavTabId>("dashboard");
+  const [layoutMode, setLayoutMode] = useState<"split" | "journal_focus" | "ai_focus">("split");
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
   // Helper to generate a fresh entry
   const createNewBlankEntry = useCallback((userId: string): JournalEntry => {
     return {
       id: "entry-" + Date.now() + "-" + Math.random().toString(36).substring(2, 7),
       userId,
-      title: "",
+      title: "Untitled Entry",
       content: "",
       mood: "reflective",
-      tags: ["reflection"],
+      tags: ["reflection", "clarity", "stress-reset"],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       messages: [],
@@ -64,98 +178,175 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Subscribe to user-isolated Firestore entries when authenticated
+  // Subscribe to user-isolated Firestore data when authenticated
   useEffect(() => {
     if (!user) {
-      setEntries([]);
-      setActiveEntry(null);
       return;
     }
 
-    const unsubscribe = subscribeToUserEntries(
+    // 1. Subscribe to Reflections
+    const unsubscribeEntries = subscribeToUserEntries(
       user.uid,
-      (fetchedEntries) => {
-        setEntries(fetchedEntries);
-        // If no active entry is selected, default to the most recent or create a new one
-        setActiveEntry(prev => {
-          if (prev) {
-            // keep the existing one or refresh with updated copy from Firestore
-            const matching = fetchedEntries.find(e => e.id === prev.id);
-            return matching || prev;
-          }
-          if (fetchedEntries.length > 0) {
+      async (fetchedEntries) => {
+        if (fetchedEntries.length > 0) {
+          setEntries(fetchedEntries);
+          setActiveEntry(prev => {
+            if (prev) {
+              const matching = fetchedEntries.find(e => e.id === prev.id);
+              return matching || fetchedEntries[0];
+            }
             return fetchedEntries[0];
+          });
+        } else {
+          // Seed Firestore with initial empirical entries so user has immediate database data
+          for (const seed of DEFAULT_JOURNAL_ENTRIES) {
+            try {
+              await saveJournalEntry(user.uid, {
+                ...seed,
+                userId: user.uid,
+              });
+            } catch (seedErr) {
+              console.warn("Could not seed initial entry:", seedErr);
+            }
           }
-          return createNewBlankEntry(user.uid);
-        });
+        }
       },
       (err) => {
-        console.error("Firestore subscription error:", err);
-        setSaveError("Failed to synchronize with Firestore: " + err.message);
+        console.error("Firestore entries subscription error:", err);
       }
     );
 
-    return () => unsubscribe();
-  }, [user, createNewBlankEntry]);
+    // 2. Subscribe to Reset Room Sessions
+    const unsubscribeSessions = subscribeToUserSessions(
+      user.uid,
+      (fetchedSessions) => {
+        if (fetchedSessions.length > 0) {
+          setSessions(fetchedSessions);
+        }
+      },
+      (err) => {
+        console.error("Firestore sessions error:", err);
+      }
+    );
 
-  // Handle Google Sign-In
+    // 3. Subscribe to Synaptically Pruned Loops
+    const unsubscribePruned = subscribeToPrunedLoops(
+      user.uid,
+      (fetchedLoops) => {
+        if (fetchedLoops.length > 0) {
+          setPrunedLoops(fetchedLoops);
+        }
+      },
+      (err) => {
+        console.error("Firestore pruned loops error:", err);
+      }
+    );
+
+    // 4. Subscribe to Glimmer Anchors
+    const unsubscribeGlimmers = subscribeToGlimmers(
+      user.uid,
+      (fetchedGlimmers) => {
+        setGlimmers(fetchedGlimmers);
+      },
+      (err) => {
+        console.error("Firestore glimmers error:", err);
+      }
+    );
+
+    // 5. Subscribe to Circadian Day Boundary entries
+    const unsubscribeCircadian = subscribeToCircadianEntries(
+      user.uid,
+      (fetchedCircadian) => {
+        setCircadianEntries(fetchedCircadian);
+      },
+      (err) => {
+        console.error("Firestore circadian error:", err);
+      }
+    );
+
+    // 6. Subscribe to Psychiatric Distillations
+    const unsubscribeDistillations = subscribeToPsychiatricDistillations(
+      user.uid,
+      (fetchedDistillations) => {
+        setPsychiatricDistillations(fetchedDistillations);
+      },
+      (err) => {
+        console.error("Firestore distillations error:", err);
+      }
+    );
+
+    return () => {
+      unsubscribeEntries();
+      unsubscribeSessions();
+      unsubscribePruned();
+      unsubscribeGlimmers();
+      unsubscribeCircadian();
+      unsubscribeDistillations();
+    };
+  }, [user]);
+
+  // Handle Authentication flows
   const handleSignIn = async () => {
-    setAuthError(null);
     try {
+      setIsAuthLoading(true);
+      setAuthError(null);
       await signInWithGoogle();
     } catch (err: any) {
-      console.error("Sign-in failed:", err);
+      console.error("Authentication error:", err);
       setAuthError(err.message || "Failed to sign in with Google.");
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
-  // Handle Logout
   const handleSignOut = async () => {
     try {
       await logOutUser();
-      setActiveEntry(null);
     } catch (err: any) {
-      console.error("Sign-out failed:", err);
+      console.error("Sign out error:", err);
+      setAuthError("Failed to sign out: " + err.message);
     }
   };
 
-  // Handle New Entry creation
-  const handleNewEntry = () => {
-    if (!user) return;
-    const blank = createNewBlankEntry(user.uid);
-    setActiveEntry(blank);
-    setIsMobileSidebarOpen(false);
-  };
-
-  // Save entry to Firestore
+  // Save Journal Entry
   const handleSaveEntry = async (entryToSave: JournalEntry) => {
-    if (!user) return;
     setIsSaving(true);
     setSaveError(null);
     try {
-      await saveJournalEntry(user.uid, entryToSave);
-      setLastSavedAt(Date.now());
+      // Local state update immediately
+      setEntries(prev => {
+        const index = prev.findIndex(e => e.id === entryToSave.id);
+        if (index >= 0) {
+          const updated = [...prev];
+          updated[index] = entryToSave;
+          return updated;
+        }
+        return [entryToSave, ...prev];
+      });
       setActiveEntry(entryToSave);
+
+      // Persist to Firestore if authenticated
+      if (user) {
+        await saveJournalEntry(user.uid, entryToSave);
+      }
+      setLastSavedAt(Date.now());
     } catch (err: any) {
-      console.error("Error saving entry to Firestore:", err);
-      setSaveError(err.message || "Failed to save reflection to Firestore.");
+      console.error("Error saving journal entry:", err);
+      setSaveError("Failed to synchronize entry: " + err.message);
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Delete entry
+  // Delete Journal Entry
   const handleDeleteEntry = async (entryId: string) => {
-    if (!user) return;
     try {
-      await deleteJournalEntry(user.uid, entryId);
+      setEntries(prev => prev.filter(e => e.id !== entryId));
       if (activeEntry?.id === entryId) {
-        const remaining = entries.filter(e => e.id !== entryId);
-        if (remaining.length > 0) {
-          setActiveEntry(remaining[0]);
-        } else {
-          setActiveEntry(createNewBlankEntry(user.uid));
-        }
+        setActiveEntry(null);
+      }
+      if (user) {
+        await deleteJournalEntry(user.uid, entryId);
       }
     } catch (err: any) {
       console.error("Error deleting entry:", err);
@@ -163,17 +354,104 @@ export default function App() {
     }
   };
 
+  // Create New Blank Entry
+  const handleNewEntry = () => {
+    const newEntry = createNewBlankEntry(user?.uid || "guest");
+    setEntries(prev => [newEntry, ...prev]);
+    setActiveEntry(newEntry);
+  };
+
+  // Save Reset Session
+  const handleSaveResetSession = async (session: ResetSession) => {
+    try {
+      setSessions(prev => [session, ...prev]);
+      if (user) {
+        await saveResetSession(user.uid, session);
+      }
+      setIsResetRoomOpen(false);
+    } catch (err: any) {
+      console.error("Error saving reset session:", err);
+      setSaveError("Failed to save reset session: " + err.message);
+    }
+  };
+
+  // Save Pruned Loop
+  const handleSavePrunedLoop = async (loop: PrunedThoughtLoop) => {
+    try {
+      setPrunedLoops(prev => [loop, ...prev]);
+      if (user) {
+        await savePrunedLoop(user.uid, loop);
+      }
+      setIsPrunerOpen(false);
+    } catch (err: any) {
+      console.error("Error saving pruned loop:", err);
+      setSaveError("Failed to save pruned loop: " + err.message);
+    }
+  };
+
+  // Save Glimmer Anchor
+  const handleSaveGlimmer = async (glimmer: GlimmerAnchor) => {
+    try {
+      setGlimmers(prev => [glimmer, ...prev]);
+      if (user) {
+        await saveGlimmerAnchor(user.uid, glimmer);
+      }
+    } catch (err: any) {
+      console.error("Error saving glimmer anchor:", err);
+      setSaveError("Failed to save glimmer: " + err.message);
+    }
+  };
+
+  // Save Circadian Entry
+  const handleSaveCircadianEntry = async (entry: CircadianEntry) => {
+    try {
+      setCircadianEntries(prev => {
+        const filtered = prev.filter(c => c.id !== entry.id);
+        return [entry, ...filtered];
+      });
+      if (user) {
+        await saveCircadianEntry(user.uid, entry);
+      }
+    } catch (err: any) {
+      console.error("Error saving circadian entry:", err);
+      setSaveError("Failed to save circadian boundary: " + err.message);
+    }
+  };
+
+  // Save Psychiatric Distillation
+  const handleSavePsychiatricDistillation = async (distillation: PsychiatricDistillation) => {
+    try {
+      setPsychiatricDistillations(prev => [distillation, ...prev]);
+      if (user) {
+        await savePsychiatricDistillation(user.uid, distillation);
+      }
+    } catch (err: any) {
+      console.error("Error saving psychiatric distillation:", err);
+      setSaveError("Failed to save distillation: " + err.message);
+    }
+  };
+
+  // Handle Dock Navigation
+  const handleSelectTab = (tab: NavTabId) => {
+    setActiveNavTab(tab);
+  };
+
   // Loading Screen
   if (isAuthLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="text-center space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center mx-auto shadow-md animate-pulse">
+      <div className={`min-h-screen ${isLight ? "light bg-[#F7F7F5] text-[#171815]" : "dark bg-[#181818] text-[#e2e8f0]"} flex items-center justify-center p-4 font-mono transition-colors`}>
+        <div className="text-center space-y-4 max-w-sm">
+          <div className="w-12 h-12 rounded bg-[#262626] border border-[#3D4028] text-[#A3A649] flex items-center justify-center mx-auto shadow-md animate-pulse">
             <Sparkles className="w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-base font-semibold text-slate-800">Initializing Reflection Space</h2>
-            <p className="text-xs text-slate-500">Checking Firebase security & authentication state...</p>
+            <h2 className="text-sm font-bold tracking-wide text-white">ana // boot</h2>
+            <p className="text-xs text-[#8C8C8C]">Initializing Cloud Firestore state...</p>
+          </div>
+          <div className="flex justify-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-[#AD3D30] animate-ping" />
+            <span className="w-2 h-2 rounded-full bg-[#A3A649]" />
+            <span className="w-2 h-2 rounded-full bg-[#3D4028]" />
           </div>
         </div>
       </div>
@@ -181,103 +459,151 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col antialiased">
-      {/* Global Navigation Bar */}
-      <Navbar
+    <div className={`min-h-screen ${isLight ? "light bg-[#F7F7F5] text-[#171815]" : "dark bg-[#121212] text-[#e2e8f0]"} flex flex-col antialiased font-mono overflow-hidden selection:bg-[#AD3D30] selection:text-white h-screen transition-colors duration-150`}>
+      {/* Aether-Void Top Header */}
+      <AetherHeader
+        activeTab={activeNavTab}
+        onSelectTab={setActiveNavTab}
+        layoutMode={layoutMode}
+        onToggleLayout={() => {
+          setLayoutMode(prev => prev === "split" ? "journal_focus" : prev === "journal_focus" ? "ai_focus" : "split");
+        }}
         user={user}
-        onSignIn={handleSignIn}
-        onSignOut={handleSignOut}
-        onNewEntry={handleNewEntry}
-        onToggleSecurityInfo={() => setIsSecurityModalOpen(true)}
+        onOpenAuth={user ? handleSignOut : handleSignIn}
         isSaving={isSaving}
-        lastSavedAt={lastSavedAt}
       />
 
-      {/* Auth Error Banner if any */}
-      {authError && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-800 flex items-center justify-between">
-          <div className="flex items-center gap-2 max-w-4xl mx-auto">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>{authError}</span>
-          </div>
-          <button
-            onClick={() => setAuthError(null)}
-            className="text-amber-700 hover:text-amber-900 font-bold px-2"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {/* Main Workspace Frame */}
+      <div className="flex-1 flex min-w-0 min-h-0 overflow-hidden">
+        {/* Rice Sidebar Dock on the far left (5 Tabs: Dashboard, Studio, Features, Archive, Config) */}
+        <RiceSidebarDock
+          activeTab={activeNavTab}
+          onSelectTab={setActiveNavTab}
+          onNewEntry={() => {
+            handleNewEntry();
+            setActiveNavTab("studio");
+          }}
+          onOpenSettings={() => setActiveNavTab("settings")}
+          user={user}
+          isSaving={isSaving}
+        />
 
-      {/* Main Content Area */}
-      {!user ? (
-        /* Unauthenticated Landing View */
-        <main className="flex-1">
-          <LandingHero onSignIn={handleSignIn} />
-        </main>
-      ) : (
-        /* Authenticated Dashboard View */
-        <div className="flex-1 flex max-w-7xl w-full mx-auto">
-          {/* Mobile Entry Drawer Toggle Button */}
-          <div className="lg:hidden fixed bottom-6 left-6 z-30">
-            <button
-              id="mobile-menu-toggle-btn"
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="p-3 rounded-full bg-slate-900 text-white shadow-lg flex items-center gap-2 text-xs font-medium active:scale-95"
-            >
-              <Menu className="w-5 h-5" />
-              <span>Past Reflections ({entries.length})</span>
-            </button>
-          </div>
-
-          {/* Past Entries History Sidebar */}
-          <EntryHistorySidebar
-            entries={entries}
-            activeEntryId={activeEntry?.id || null}
-            onSelectEntry={(entry) => setActiveEntry(entry)}
-            onNewEntry={handleNewEntry}
-            onDeleteEntry={handleDeleteEntry}
-            isOpenMobile={isMobileSidebarOpen}
-            onCloseMobile={() => setIsMobileSidebarOpen(false)}
-          />
-
-          {/* Active Journal Editor & AI Dialogue Area */}
-          <main className="flex-1 p-4 sm:p-6 lg:p-8 min-w-0 max-w-4xl">
-            {activeEntry ? (
-              <JournalEditor
-                key={activeEntry.id}
-                entry={activeEntry}
-                onSave={handleSaveEntry}
-                onDelete={handleDeleteEntry}
-                isSaving={isSaving}
-                saveError={saveError}
-                onClearSaveError={() => setSaveError(null)}
-              />
-            ) : (
-              <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 p-8 space-y-4">
-                <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <h3 className="text-lg font-serif font-bold text-slate-800">Ready to reflect?</h3>
-                <p className="text-xs text-slate-500 max-w-md mx-auto">
-                  Start a new journal entry to write your thoughts and have Gemini provide reflections and takeaways.
-                </p>
-                <button
-                  onClick={handleNewEntry}
-                  className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium shadow-sm transition-all"
-                >
-                  Start New Reflection
-                </button>
+        {/* Workspace Column */}
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          {/* Auth or Save Error Notification Banner if any */}
+          {(authError || saveError) && (
+            <div className="bg-[#AD3D30]/20 border-b border-[#AD3D30] px-4 py-2 text-xs text-[#e2e8f0] flex items-center justify-between font-mono shrink-0">
+              <div className="flex items-center gap-2 max-w-4xl">
+                <AlertCircle className="w-4 h-4 text-[#AD3D30] shrink-0" />
+                <span>{authError || saveError}</span>
               </div>
-            )}
-          </main>
-        </div>
-      )}
+              <button
+                onClick={() => {
+                  setAuthError(null);
+                  setSaveError(null);
+                }}
+                className="text-[#8C8C8C] hover:text-white font-bold px-2 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
-      {/* Security & Threat Defense Modal */}
+          {/* Primary Tiling Window Manager (Routes between Dashboard, Studio, Features, Archive, Settings) */}
+          <div className="flex-1 h-full overflow-hidden">
+            <TilingWindowManager
+              activeTab={activeNavTab}
+              onSelectTab={setActiveNavTab}
+              activeEntry={activeEntry}
+              entries={entries}
+              sessions={sessions}
+              prunedLoops={prunedLoops}
+              glimmers={glimmers}
+              circadianEntries={circadianEntries}
+              psychiatricDistillations={psychiatricDistillations}
+              onSaveEntry={handleSaveEntry}
+              onDeleteEntry={handleDeleteEntry}
+              onSelectEntry={(entry) => {
+                setActiveEntry(entry);
+              }}
+              onNewEntry={() => {
+                handleNewEntry();
+                setActiveNavTab("studio");
+              }}
+              isSaving={isSaving}
+              saveError={saveError}
+              onClearSaveError={() => setSaveError(null)}
+              onSaveResetSession={handleSaveResetSession}
+              onSavePrunedLoop={handleSavePrunedLoop}
+              onSaveGlimmer={handleSaveGlimmer}
+              onSaveCircadianEntry={handleSaveCircadianEntry}
+              onSavePsychiatricDistillation={handleSavePsychiatricDistillation}
+              layoutMode={layoutMode}
+              onSetLayoutMode={setLayoutMode}
+              user={user}
+              onSignIn={handleSignIn}
+              onSignOut={handleSignOut}
+              lastSavedAt={lastSavedAt}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Fallback Modals for legacy triggers if ever needed */}
+      <ResetRoomModal
+        isOpen={isResetRoomOpen}
+        onClose={() => setIsResetRoomOpen(false)}
+        user={user}
+        onSessionSaved={handleSaveResetSession}
+        onOpenLogin={handleSignIn}
+      />
+
+      <ResetSessionViewerModal
+        session={selectedSessionForView}
+        isOpen={!!selectedSessionForView}
+        onClose={() => setSelectedSessionForView(null)}
+        onDeleteSession={async (id) => {
+          setSessions(prev => prev.filter(s => s.id !== id));
+          if (user) await deleteResetSession(user.uid, id);
+          setSelectedSessionForView(null);
+        }}
+      />
+
+      <SynapticPruningModal
+        isOpen={isPrunerOpen}
+        onClose={() => setIsPrunerOpen(false)}
+        userId={user?.uid}
+        onSavePrunedLoop={handleSavePrunedLoop}
+      />
+
+      <GlimmerVaultModal
+        isOpen={isGlimmerVaultOpen}
+        onClose={() => setIsGlimmerVaultOpen(false)}
+        userId={user?.uid}
+        journalContext={activeEntry?.content || ""}
+        glimmers={glimmers}
+        onSaveGlimmer={handleSaveGlimmer}
+        onDeleteGlimmer={async (id) => {
+          setGlimmers(prev => prev.filter(g => g.id !== id));
+          if (user) await deleteGlimmerAnchor(user.uid, id);
+        }}
+      />
+
       <SecurityArchitectureModal
         isOpen={isSecurityModalOpen}
         onClose={() => setIsSecurityModalOpen(false)}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        user={user}
+        onSignIn={handleSignIn}
+        onSignOut={handleSignOut}
+        onOpenSecurity={() => setIsSecurityModalOpen(true)}
+        isSaving={isSaving}
+        lastSavedAt={lastSavedAt}
+        entryCount={entries.length}
       />
     </div>
   );

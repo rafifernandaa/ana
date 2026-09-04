@@ -1,6 +1,9 @@
 {
-  "name": "Gemini Reflection Journal",
-  "description": "A secure, user-authenticated reflective journal powered by Gemini AI and Cloud Firestore.",
-  "requestFramePermissions": [],
+  "name": "Ana - Mindful Journal & Stress Reset",
+  "description": "An empathetic journaling and mindful stress reset application with circadian day-boundary coaching, loop-closing reflections, guided breathing, thought reframing, and glimmer anchoring powered by Gemini AI and Cloud Firestore.",
+  "requestFramePermissions": [
+    "microphone",
+    "clipboard-read"
+  ],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

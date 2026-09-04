@@ -1,0 +1,132 @@
+# Build a User-Authenticated AI Application with Custom Instructions on Google AI Studio & Cloud Run
+## Official Codelab Reference & Enterprise Security Directive Guide
+### Google Cloud x Hack2Skill — APAC GenAI Academy (Cohort 3)
+
+---
+
+## 1. Challenge & Codelab Overview
+
+Modern generative AI applications frequently fail in production due to hardcoded API keys, unauthenticated endpoints, and shared database collections lacking isolation. The objective of this challenge is to build a production-grade **Personal Gemini Journal** application by first configuring **Google AI Studio** with custom instructions that enforce enterprise security directives, followed by implementing and deploying the application to **Google Cloud Run**.
+
+### The 3 Challenge Phases:
+1. **Phase 1: Configure Google AI Studio with Custom Instructions (The Constitution)**
+   Bake in enterprise-grade production directives covering threat modeling, secure coding standards, database isolation rules, and secret management.
+2. **Phase 2: Build the Core Personal Gemini Journal**
+   - **User Authentication**: Firebase Auth (Google OAuth).
+   - **Multi-turn AI Interaction**: Conversational brainstorming & reflection using Gemini API.
+   - **Isolated Data Storage**: Each user's data persists to Cloud Firestore under `/users/{userId}/*` with strict rules.
+   - **Secure Key Management**: API keys retrieved from Google Cloud Secret Manager, never hardcoded.
+3. **Phase 3: Ship Original Feature Enhancements**
+   Go beyond the base spec with original capabilities designed and built with Google AI Studio.
+
+---
+
+## 2. Phase 1: Google AI Studio Custom Instructions ("The Security Constitution")
+
+Copy and paste the following directive into Google AI Studio's **System Instructions** / **Custom Instructions** panel:
+
+```markdown
+You are an expert Principal Security Engineer and Full-Stack Cloud Architect assisting in the design and implementation of production-grade AI web applications.
+
+Before writing or suggesting any code, you must enforce the following non-negotiable security directives:
+
+1. THREAT MODELING & 5-ZONE DEFENSE:
+   - Zone 1 (Input Surfaces): Validate and sanitize all user input before processing. Enforce strict JSON body parsing schemas. Guard against prompt injection.
+   - Zone 2 (Planning & Reasoning): Prevent single-point-of-failure model crashes. Implement a resilient fallback ladder (e.g. primary fast model falling back to secondary models on 429/503 errors).
+   - Zone 3 (Tool & API Execution): Never execute arbitrary commands or unsanitized URLs. Server-side proxying only; zero client-side direct API calls using secrets.
+   - Zone 4 (Memory & State): Enforce strict tenant and user data isolation. Every database read, write, and query must be explicitly scoped to the authenticated user ID (UID).
+   - Zone 5 (Inter-System Communication): Never commit or hardcode credentials. Store all sensitive tokens in Google Cloud Secret Manager or server environment variables.
+
+2. ZERO INSECURE DEFAULTS:
+   - Never embed `GEMINI_API_KEY` in frontend bundles, HTML templates, or public repositories.
+   - All Gemini API calls must traverse a server-side proxy (e.g. Express on Node.js / Cloud Run).
+   - Cloud Firestore security rules must strictly enforce: `allow read, write: if request.auth != null && request.auth.uid == userId;`.
+
+3. DATA HYGIENE & RELIABILITY:
+   - Always strip `undefined` fields from JavaScript objects before sending payloads to Cloud Firestore to prevent runtime mutation crashes.
+   - Use structured JSON outputs (`responseMimeType: "application/json"`) with defensive parsers to guarantee reliable UI rendering.
+
+4. USER-CENTRIC DESIGN & ETHICAL TONE:
+   - Provide thoughtful, empathetic reflection support without offering unverified medical or clinical diagnoses.
+   - Avoid toxic positivity; prioritize grounded emotional realism, agency, and clarity.
+```
+
+---
+
+## 3. Phase 2: Core Architecture Specifications
+
+### A. Authentication Architecture
+- **Provider**: Firebase Authentication with Google Identity Provider (`GoogleAuthProvider`).
+- **Flow**: Popup with fallback to redirect.
+- **State Handling**: Global `onAuthStateChanged` listener synchronizing user profile and active Firestore listeners.
+
+### B. Isolated Cloud Firestore Schema
+All user data lives exclusively under the user's isolated subcollections:
+```
+/users/{userId}/entries/{entryId}                  -> Reflective journal entries & AI summaries
+/users/{userId}/sessions/{sessionId}              -> Somatic stress reset sessions
+/users/{userId}/pruned_loops/{loopId}             -> Cognitive distortions & rewired beliefs
+/users/{userId}/glimmers/{glimmerId}              -> Micro-moments of calm & safety
+/users/{userId}/circadian_entries/{circadianId}   -> Morning intentions & evening loop closures
+/users/{userId}/psychiatric_distillations/{id}    -> Deconstructed facts vs interpretations & agency
+```
+
+### C. Firestore Security Rules (`firestore.rules`)
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}
+```
+
+### D. Google Cloud Secret Manager Integration
+Keys are stored in Secret Manager and injected into Cloud Run at runtime:
+```bash
+# 1. Create Secret in Secret Manager
+gcloud secrets create GEMINI_API_KEY --replication-policy="automatic"
+echo -n "YOUR_API_KEY_HERE" | gcloud secrets versions add GEMINI_API_KEY --data-file=-
+
+# 2. Grant Cloud Run Service Account Access
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format="value(projectNumber)")
+gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+```
+
+### E. Cloud Run Deployment Command
+To receive full hackathon evaluation credit, deploy with the official challenge verification label:
+```bash
+gcloud run deploy ana-personal-journal \
+  --source . \
+  --platform managed \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --update-labels=dev-tutorial=cloud-run-ai-challenge
+```
+
+---
+
+## 4. Phase 3: Original Feature Enhancements in Ana
+
+Beyond the base journal spec, Ana implements:
+1. **Somatic Stress Reset Room**:
+   Interactive body-mapping, vagus nerve breathing pacer (4-7-8 & box breathing), affect labeling, and 3-lens cognitive reframing (Compassion, Perspective, Agency).
+2. **Synaptic Pruner Protocol**:
+   Automated cognitive distortion classifier with particle dissolution ceremony and rational belief anchors.
+3. **Psychiatric Decentering Station ("Vent-to-Clarity")**:
+   Clinical deconstruction separating objective "camera-verifiable facts" from emotional projections, circle of control mapping, and dual-inhalation physiological sighs.
+4. **Circadian Day-Boundary Coaching**:
+   Dawn dopamine priming vs dusk cognitive offloading with Web Audio binaural frequency harmonics.
+5. **Empirical Telemetry & Longitudinal Predictive Analytics**:
+   Computational extraction of numerical biometric scales (0-10), binary habits, and lagged next-day impact prediction.
+6. **Cinematic 3D Chronicle Landing Page**:
+   Interactive WebGL leather-bound journal with smooth chapter navigation.
