@@ -362,3 +362,15 @@ export interface GeminiLongitudinalSynthesisResponse {
   modelUsed: string;
 }
 
+export interface GeminiNarrativeDecenterRequest {
+  content: string;
+  title?: string;
+}
+
+export interface GeminiNarrativeDecenterResponse {
+  decenteredPerspective: string; // Third-person self-distanced narrative ("Seeing the landscape from above")
+  causalBridge: string; // The core realization and causal clarity behind the raw stream
+  groundedStep: string; // Single gentle next step from this wider perspective
+  modelUsed: string;
+}
+

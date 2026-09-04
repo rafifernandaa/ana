@@ -1479,6 +1479,76 @@ ${autoRedact ? "4. SENSITIVE DATA PROTECTION (Google Cloud DLP): Mask all specif
   }
 });
 
+// API: Implicit Narrative Decentering & Perspective Shifting (Gemini 3.6+)
+// Inspired by Pennebaker's expressive writing & self-distancing research.
+// Strictly non-clinical: zero expert diagnosis, zero medical claims.
+app.post("/api/gemini/narrative-decenter", async (req: Request, res: Response) => {
+  try {
+    const body = (req.body && typeof req.body === "object") ? req.body : {};
+    const content = typeof body.content === "string" ? body.content : "";
+    const title = typeof body.title === "string" ? body.title : "Reflection";
+
+    if (!content.trim()) {
+      return res.status(400).json({ error: "Content is required to generate narrative perspective." });
+    }
+
+    const systemPrompt = `You are a mindful perspective-shifting guide in Ana, a neuroscience-informed journal.
+Your task is to take the user's raw thoughts, emotional venting, or brain dump and gently reframe it from a compassionate, third-person perspective (self-distancing), while highlighting causal understanding.
+
+CRITICAL BOUNDARIES:
+- DO NOT provide any psychological, psychiatric, or medical diagnoses.
+- DO NOT use clinical pathologizing words (e.g. "disorder", "trauma diagnosis", "depression symptom", "pathology", "patient").
+- DO NOT judge or lecture the user.
+- Emphasize curiosity, human universality, emotional validity, and calm perspective.
+
+Structure the JSON output exactly with:
+1. "decenteredPerspective": (2-3 brief paragraphs). Retell their situation as an empathetic observer watching someone navigate their day with compassion. Use gentle third-person or collective framing ("The person noticed...", "One can see how much was carried...").
+2. "causalBridge": (1-2 sentences). Articulate the core realization or "why" behind the tension (connecting cause to realization: "This feeling emerged because... and the deeper realization is...").
+3. "groundedStep": (1 sentence). A gentle, low-pressure micro-step or breath anchor to return to the present.`;
+
+    const result = await generateContentWithFallback({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: `Entry Title: "${title}"\nRaw Stream of Thought:\n${content}` }],
+        },
+      ],
+      config: {
+        systemInstruction: systemPrompt,
+        temperature: 0.6,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            decenteredPerspective: { type: Type.STRING },
+            causalBridge: { type: Type.STRING },
+            groundedStep: { type: Type.STRING },
+          },
+          required: ["decenteredPerspective", "causalBridge", "groundedStep"],
+        },
+      },
+    });
+
+    const parsed = JSON.parse(result.response.text || "{}");
+
+    logStructured("INFO", "Narrative decenter generated", {
+      modelUsed: result.modelUsed,
+      contentLength: content.length,
+    });
+
+    return res.json({
+      decenteredPerspective: parsed.decenteredPerspective || "",
+      causalBridge: parsed.causalBridge || "",
+      groundedStep: parsed.groundedStep || "",
+      modelUsed: result.modelUsed,
+    });
+  } catch (error: any) {
+    console.error("Narrative Decenter API Error:", error);
+    return res.status(500).json({
+      error: error?.message || "Failed to generate perspective shift.",
+    });
+  }
+});
 
 // Start Full-Stack Server & Mount Vite Middleware
 async function startServer() {

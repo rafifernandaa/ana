@@ -16,7 +16,9 @@ import {
   GeminiTelemetryRequest,
   GeminiTelemetryResponse,
   GeminiLongitudinalSynthesisRequest,
-  GeminiLongitudinalSynthesisResponse
+  GeminiLongitudinalSynthesisResponse,
+  GeminiNarrativeDecenterRequest,
+  GeminiNarrativeDecenterResponse
 } from "../types";
 
 /**
@@ -191,6 +193,29 @@ export async function generateLongitudinalSynthesisWithGemini(
   request: GeminiLongitudinalSynthesisRequest
 ): Promise<GeminiLongitudinalSynthesisResponse> {
   const response = await fetch("/api/gemini/longitudinal-synthesis", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.error || `Server responded with status ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Calls backend server endpoint to gently shift raw thoughts into third-person perspective & causal clarity
+ * Implicitly inspired by self-distancing research. Does NOT diagnose.
+ */
+export async function decenterNarrativeStreamWithGemini(
+  request: GeminiNarrativeDecenterRequest
+): Promise<GeminiNarrativeDecenterResponse> {
+  const response = await fetch("/api/gemini/narrative-decenter", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

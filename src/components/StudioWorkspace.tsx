@@ -27,7 +27,8 @@ import {
   Pin,
   PinOff,
   BarChart3,
-  Camera
+  Camera,
+  Lightbulb
 } from "lucide-react";
 import { HandwrittenCaptureModal } from "./HandwrittenCaptureModal";
 import { 
@@ -35,13 +36,20 @@ import {
   ChatMessage, 
   JournalMood, 
   AISummary,
-  EmpiricalTelemetry
+  EmpiricalTelemetry,
+  GeminiNarrativeDecenterResponse
 } from "../types";
 import { 
   sendChatMessageToGemini, 
   generateEntrySummaryWithGemini,
-  extractEmpiricalTelemetryFromGemini
+  extractEmpiricalTelemetryFromGemini,
+  decenterNarrativeStreamWithGemini
 } from "../lib/geminiService";
+import { 
+  analyzeNarrativeFlow, 
+  BRAIN_DUMP_STARTERS, 
+  NarrativeFlowMetrics 
+} from "../lib/narrativeFlowAnalyzer";
 import { EmpiricalTelemetryCard } from "./EmpiricalTelemetryCard";
 
 interface StudioWorkspaceProps {
@@ -100,7 +108,23 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   const [isJournalCollapsed, setIsJournalCollapsed] = useState<boolean>(layoutMode === "ai_focus");
   const [isAiCollapsed, setIsAiCollapsed] = useState<boolean>(layoutMode === "journal_focus");
 
+  // Narrative Flow State (Implicit Pennebaker / Cognitive Unwinding Engine)
+  const [isFlowGuideOpen, setIsFlowGuideOpen] = useState<boolean>(true);
+  const [flowMetrics, setFlowMetrics] = useState<NarrativeFlowMetrics>(() => analyzeNarrativeFlow(entry.content));
+  const [showAmbientPrompt, setShowAmbientPrompt] = useState<boolean>(false);
+  const [isDecentering, setIsDecentering] = useState<boolean>(false);
+  const [decenteredResult, setDecenteredResult] = useState<GeminiNarrativeDecenterResponse | null>(null);
+  const typingTimerRef = useRef<any>(null);
+
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleInsertHandwrittenText = (transcribedText: string, attachedImages: string[]) => {
     const existingContent = currentEntry.content.trim();
@@ -122,6 +146,9 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   // Synchronize when entry changes from parent
   useEffect(() => {
     setCurrentEntry(entry);
+    setFlowMetrics(analyzeNarrativeFlow(entry.content));
+    setShowAmbientPrompt(false);
+    setDecenteredResult(null);
   }, [entry.id]);
 
   // Sync with layout mode from parent
@@ -155,8 +182,77 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
 
   // Content change
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const updated = { ...currentEntry, content: e.target.value, updatedAt: Date.now() };
+    const text = e.target.value;
+    const updated = { ...currentEntry, content: text, updatedAt: Date.now() };
     setCurrentEntry(updated);
+
+    // Update real-time narrative flow metrics
+    const metrics = analyzeNarrativeFlow(text);
+    setFlowMetrics(metrics);
+
+    // Ambient Ghost Prompt detection (fires when user pauses for >4s during active writing)
+    setShowAmbientPrompt(false);
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+    }
+
+    if (metrics.totalWords >= 20 && metrics.currentStage !== "horizon") {
+      typingTimerRef.current = setTimeout(() => {
+        setShowAmbientPrompt(true);
+      }, 4000);
+    }
+  };
+
+  const handleApplyStarter = (starterText: string) => {
+    const newContent = currentEntry.content ? `${currentEntry.content}\n\n${starterText}` : starterText;
+    const updated = { ...currentEntry, content: newContent, updatedAt: Date.now() };
+    setCurrentEntry(updated);
+    setFlowMetrics(analyzeNarrativeFlow(newContent));
+  };
+
+  const handleInsertAmbientPrompt = () => {
+    if (!flowMetrics.suggestedPrompt) return;
+    const newContent = currentEntry.content 
+      ? `${currentEntry.content.trim()}\n\n*${flowMetrics.suggestedPrompt}*\n`
+      : `*${flowMetrics.suggestedPrompt}*\n`;
+    const updated = { ...currentEntry, content: newContent, updatedAt: Date.now() };
+    setCurrentEntry(updated);
+    setFlowMetrics(analyzeNarrativeFlow(newContent));
+    setShowAmbientPrompt(false);
+  };
+
+  const handleDecenterNarrative = async () => {
+    if (!currentEntry.content.trim() || isDecentering) return;
+    setIsDecentering(true);
+    setAiError(null);
+    try {
+      const res = await decenterNarrativeStreamWithGemini({
+        content: currentEntry.content,
+        title: currentEntry.title,
+      });
+      setDecenteredResult(res);
+      if (isAiCollapsed) {
+        setIsAiCollapsed(false);
+      }
+    } catch (err: any) {
+      console.error("Failed to generate perspective shift:", err);
+      setAiError("Could not generate perspective shift. Please try again.");
+    } finally {
+      setIsDecentering(false);
+    }
+  };
+
+  const handleAppendDecenteredToJournal = () => {
+    if (!decenteredResult) return;
+    const addition = `\n\n### Horizon Perspective (Decentered Clarity)\n${decenteredResult.decenteredPerspective}\n\n**Realization:** ${decenteredResult.causalBridge}\n\n**Grounding Step:** ${decenteredResult.groundedStep}`;
+    const updated = {
+      ...currentEntry,
+      content: `${currentEntry.content.trim()}${addition}`,
+      updatedAt: Date.now(),
+    };
+    setCurrentEntry(updated);
+    onSave(updated);
+    setDecenteredResult(null);
   };
 
   // Mood select
@@ -471,6 +567,24 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Flow Guide Toggle Button (Cognitive Unwinding / Narrative Milestones) */}
+                <button
+                  id="studio-flow-guide-btn"
+                  onClick={() => setIsFlowGuideOpen(prev => !prev)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-xs border text-[10px] font-semibold transition-all shadow-xs cursor-pointer ${
+                    isFlowGuideOpen
+                      ? "bg-[#3D4028] text-[#A3A649] border-[#A3A649]"
+                      : "bg-[#262626] hover:bg-[#3D4028] text-[#8C8C8C] hover:text-white border-[#3D4028]"
+                  }`}
+                  title="Toggle Narrative Flow Guide (Implicit Cognitive Unwinding & Brain Dump Starters)"
+                >
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span className="hidden sm:inline">Flow Guide</span>
+                  <span className="text-[9px] px-1 py-0.2 rounded-xs bg-[#181818] text-[#A3A649] font-mono">
+                    {flowMetrics.currentStage === "release" ? "1. Stream" : flowMetrics.currentStage === "causal" ? "2. Causal" : "3. Horizon"}
+                  </span>
+                </button>
+
                 {/* Scan Handwritten Journal button */}
                 <button
                   id="studio-scan-handwritten-btn"
@@ -571,6 +685,103 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                 </div>
               )}
 
+              {/* Cognitive Unwinding & Narrative Flow Guide (Implicit Pennebaker Engine) */}
+              {isFlowGuideOpen && (
+                <div className="p-3 bg-[#20241a] border border-[#3D4028] rounded-xs space-y-2.5 animate-in fade-in text-xs">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1.5 font-bold text-[#A3A649]">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>COGNITIVE UNWINDING FLOW</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-[#8C8C8C] font-mono">{flowMetrics.totalWords} words</span>
+                      <span className="text-[#3D4028]">|</span>
+                      <span className="text-[#cfd39c] font-medium">{flowMetrics.stageLabel}</span>
+                    </div>
+                  </div>
+
+                  {/* 3 Milestones Stepper */}
+                  <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+                    <div className={`p-1.5 rounded-xs border transition-all ${
+                      flowMetrics.currentStage === "release"
+                        ? "bg-[#2d3319] border-[#A3A649] text-white font-bold"
+                        : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
+                    }`}>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#A3A649]" />
+                        <span>1. Stream</span>
+                      </div>
+                      <p className="text-[9px] text-[#8C8C8C] mt-0.5 hidden sm:block">Raw emotional venting</p>
+                    </div>
+
+                    <div className={`p-1.5 rounded-xs border transition-all ${
+                      flowMetrics.currentStage === "causal"
+                        ? "bg-[#2d3319] border-[#A3A649] text-white font-bold"
+                        : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
+                    }`}>
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${flowMetrics.causalCount > 0 ? "bg-[#A3A649]" : "bg-[#8C8C8C]/40"}`} />
+                        <span>2. Causal</span>
+                      </div>
+                      <p className="text-[9px] text-[#8C8C8C] mt-0.5 hidden sm:block">"because", "realize", "why"</p>
+                    </div>
+
+                    <div className={`p-1.5 rounded-xs border transition-all ${
+                      flowMetrics.currentStage === "horizon"
+                        ? "bg-[#2d3319] border-[#A3A649] text-white font-bold"
+                        : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
+                    }`}>
+                      <div className="flex items-center gap-1">
+                        <span className={`w-1.5 h-1.5 rounded-full ${flowMetrics.perspectiveCount > 0 ? "bg-[#10b981]" : "bg-[#8C8C8C]/40"}`} />
+                        <span>3. Horizon</span>
+                      </div>
+                      <p className="text-[9px] text-[#8C8C8C] mt-0.5 hidden sm:block">Wider altitude & distance</p>
+                    </div>
+                  </div>
+
+                  {/* Stage Progress Bar */}
+                  <div className="space-y-1">
+                    <div className="w-full bg-[#181a14] h-1.5 rounded-full overflow-hidden border border-[#3D4028]/60">
+                      <div 
+                        className="bg-gradient-to-r from-[#A3A649] to-[#10b981] h-full transition-all duration-300"
+                        style={{ width: `${flowMetrics.stageProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-[#8C8C8C]">
+                      <span>{flowMetrics.stageDescription}</span>
+                      {flowMetrics.causalWordsFound.length > 0 && (
+                        <span className="text-[#A3A649] font-mono truncate max-w-[150px]">
+                          Links: {flowMetrics.causalWordsFound.slice(0, 3).join(", ")}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 3 Low-friction Brain Dump Starters if empty or very short */}
+                  {flowMetrics.totalWords < 20 && (
+                    <div className="pt-2 border-t border-[#3D4028]/80 space-y-1.5">
+                      <span className="text-[10px] text-[#8C8C8C] font-semibold">Blank page? Tap an uninhibited starter to begin:</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                        {BRAIN_DUMP_STARTERS.map((starter, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleApplyStarter(starter.text)}
+                            className="p-1.5 text-left bg-[#181a14] hover:bg-[#282d19] border border-[#3D4028] hover:border-[#A3A649] rounded-xs transition-all text-[10px] cursor-pointer group"
+                          >
+                            <div className="text-[#A3A649] font-bold group-hover:underline">
+                              {starter.label}
+                            </div>
+                            <div className="text-[#8C8C8C] text-[9px] line-clamp-1 mt-0.5">
+                              "{starter.text.trim()}..."
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Title Input */}
               <div className="bg-[#262626] border border-[#3D4028] rounded-xs p-2.5 space-y-2">
                 {currentEntry.isPinned && (
@@ -652,6 +863,34 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                   placeholder="Stream of consciousness, raw thoughts, or emotional venting... (Markdown supported)"
                   className="w-full flex-1 min-h-[140px] md:min-h-[300px] bg-transparent text-[#e2e8f0] text-xs sm:text-sm font-mono leading-relaxed placeholder-[#8C8C8C]/40 focus:outline-hidden resize-none"
                 />
+
+                {/* Ambient Ghost Prompt Banner (when user pauses typing for >4 seconds) */}
+                {showAmbientPrompt && flowMetrics.suggestedPrompt && (
+                  <div className="my-2 p-2 rounded-xs bg-[#202617] border border-[#A3A649]/60 flex items-center justify-between animate-in fade-in slide-in-from-top-1 text-xs">
+                    <div className="flex items-center gap-2 text-[#e2e8f0] min-w-0">
+                      <Lightbulb className="w-3.5 h-3.5 text-[#A3A649] shrink-0 animate-pulse" />
+                      <span className="italic text-[11px] text-[#cfd39c] truncate">
+                        "{flowMetrics.suggestedPrompt}"
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      <button
+                        onClick={handleInsertAmbientPrompt}
+                        className="px-2 py-0.5 rounded-xs bg-[#3D4028] hover:bg-[#A3A649] text-[#A3A649] hover:text-black text-[10px] font-bold transition-all cursor-pointer"
+                        title="Insert gentle prompt into journal"
+                      >
+                        + Insert
+                      </button>
+                      <button
+                        onClick={() => setShowAmbientPrompt(false)}
+                        className="px-1.5 py-0.5 text-[#8C8C8C] hover:text-white text-[10px] cursor-pointer"
+                        title="Dismiss prompt"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Bottom stats footer */}
                 <div className="pt-2 border-t border-[#3D4028] flex items-center justify-between text-[10px] text-[#8C8C8C]">
@@ -749,6 +988,27 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                {/* Horizon Shift (Implicit Third-Person Decentering via Gemini 3.6+) */}
+                <button
+                  id="studio-decenter-perspective-btn"
+                  onClick={handleDecenterNarrative}
+                  disabled={isDecentering || !currentEntry.content.trim()}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-xs bg-[#3D4028]/70 hover:bg-[#A3A649] text-[#A3A649] hover:text-black text-[10px] font-semibold transition-all border border-[#A3A649]/50 disabled:opacity-40 cursor-pointer"
+                  title="Horizon Shift: View your thoughts through a neutral, third-person perspective with causal clarity (Gemini 3.6+)"
+                >
+                  {isDecentering ? (
+                    <>
+                      <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                      <span>Shifting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-2.5 h-2.5 text-[#A3A649]" />
+                      <span className="hidden md:inline">Horizon Shift</span>
+                    </>
+                  )}
+                </button>
+
                 {/* Empirical Telemetry Action */}
                 <button
                   id="extract-telemetry-btn"
@@ -833,6 +1093,58 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
 
             {/* Chat Messages Stream */}
             <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-[#181818] min-h-0">
+              {/* Decentered Horizon Perspective Card (Implicit Pennebaker Decentering) */}
+              {decenteredResult && (
+                <div className="p-3 rounded-xs bg-[#222718] border border-[#A3A649] space-y-2.5 text-xs animate-in fade-in">
+                  <div className="flex items-center justify-between text-[#A3A649] font-bold text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>HORIZON PERSPECTIVE (DECENTERED CLARITY)</span>
+                    </div>
+                    <button
+                      onClick={() => setDecenteredResult(null)}
+                      className="text-[#8C8C8C] hover:text-white cursor-pointer text-xs"
+                      title="Dismiss card"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-1.5 text-[#e2e8f0]">
+                    <p className="italic text-[11px] leading-relaxed text-[#dcdfb4] bg-[#181a12] p-2 rounded-xs border border-[#3D4028]">
+                      "{decenteredResult.decenteredPerspective}"
+                    </p>
+                  </div>
+
+                  {decenteredResult.causalBridge && (
+                    <div className="p-2 rounded-xs bg-[#1a1c14] border border-[#3D4028] space-y-0.5">
+                      <span className="text-[10px] text-[#A3A649] font-bold uppercase tracking-wider">Causal Realization</span>
+                      <p className="text-[11px] text-[#e2e8f0]">{decenteredResult.causalBridge}</p>
+                    </div>
+                  )}
+
+                  {decenteredResult.groundedStep && (
+                    <div className="p-2 rounded-xs bg-[#1a1c14] border border-[#3D4028] space-y-0.5">
+                      <span className="text-[10px] text-[#10b981] font-bold uppercase tracking-wider">Grounded Anchor</span>
+                      <p className="text-[11px] text-[#e2e8f0]">{decenteredResult.groundedStep}</p>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1 border-t border-[#3D4028]/80">
+                    <span className="text-[9px] text-[#8C8C8C] font-mono">
+                      Model: {decenteredResult.modelUsed || "gemini-3.8-flash"}
+                    </span>
+                    <button
+                      onClick={handleAppendDecenteredToJournal}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-xs bg-[#A3A649] hover:bg-[#A3A649]/80 text-black text-[10px] font-bold transition-all cursor-pointer shadow-xs"
+                      title="Append this perspective to your journal reflection"
+                    >
+                      <span>+ Append to Journal</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* AI Summary Card if present */}
               {currentEntry.aiSummary && (
                 <div className="p-3 rounded-xs bg-[#262626] border border-[#A3A649] space-y-2 text-xs">
