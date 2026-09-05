@@ -89,6 +89,8 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
   const [emailProvider, setEmailProvider] = useState<"auto" | "resend" | "sendgrid">("auto");
   const [customApiKey, setCustomApiKey] = useState("");
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [showResendHelp, setShowResendHelp] = useState(false);
+  const [useRealUserData, setUseRealUserData] = useState(true);
   const [simulatedInactivityHours, setSimulatedInactivityHours] = useState<number>(22);
   const [inactivityThreshold, setInactivityThreshold] = useState<number>(20);
   const [emailSubTab, setEmailSubTab] = useState<"dispatch" | "scheduler" | "runbook">("dispatch");
@@ -103,10 +105,10 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
 
   // Keep test email address in sync with authenticated user
   useEffect(() => {
-    if (user?.email && !testEmailAddress) {
+    if (user?.email) {
       setTestEmailAddress(user.email);
     }
-  }, [user]);
+  }, [user?.email]);
 
   // Load server-side email provider status from Cloud Run
   useEffect(() => {
@@ -158,11 +160,12 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
   const handleRunSchedulerCheck = async () => {
     setIsCheckingScheduler(true);
     try {
+      const activeHours = useRealUserData ? hoursSinceLastEntry : simulatedInactivityHours;
       const data = await runCircadianSchedulerCheck({
         userId: user ? user.uid : "guest_authenticated",
         userEmail: testEmailAddress || user?.email || undefined,
         userName: user?.displayName || (testEmailAddress ? testEmailAddress.split("@")[0] : "Reflective User"),
-        lastEntryAt: latestEntry ? latestEntry.createdAt : (Date.now() - simulatedInactivityHours * 60 * 60 * 1000),
+        lastEntryAt: latestEntry ? latestEntry.createdAt : (Date.now() - activeHours * 60 * 60 * 1000),
         thresholdHours: inactivityThreshold,
         provider: emailProvider,
         apiKey: customApiKey.trim() || undefined,
@@ -176,15 +179,21 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
   };
 
   const handleSendTestEmail = async () => {
-    if (!testEmailAddress || !testEmailAddress.includes("@")) return;
+    const targetEmail = testEmailAddress.trim() || user?.email;
+    if (!targetEmail || !targetEmail.includes("@")) return;
     setIsSendingTestEmail(true);
     setEmailTestResult(null);
     try {
+      const activeHours = useRealUserData ? hoursSinceLastEntry : simulatedInactivityHours;
+      const phase = activeHours >= 20 
+        ? "Evening Loop Closure" 
+        : (new Date().getHours() < 12 ? "Morning Dopamine Prime" : "Midday Grounding Anchor");
+
       const res = await dispatchTestEmail({
-        recipientEmail: testEmailAddress,
-        recipientName: user?.displayName || testEmailAddress.split("@")[0],
-        hoursInactive: simulatedInactivityHours,
-        circadianPhase: simulatedInactivityHours >= 20 ? "Evening Loop Closure" : "Morning Dopamine Prime",
+        recipientEmail: targetEmail,
+        recipientName: user?.displayName || (user?.email ? user.email.split("@")[0] : targetEmail.split("@")[0]),
+        hoursInactive: activeHours,
+        circadianPhase: phase,
         provider: emailProvider,
         apiKey: customApiKey.trim() || undefined,
       });
@@ -194,7 +203,7 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
         status: "error",
         provider: "preview_mock",
         message: err?.message || "Failed to dispatch test email",
-        recipient: testEmailAddress,
+        recipient: targetEmail,
         subject: "Ana // Circadian Inactivity Alert",
         timestamp: new Date().toISOString(),
       });
@@ -763,12 +772,118 @@ ${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
                 {/* TAB 1: Direct Live Dispatch */}
                 {emailSubTab === "dispatch" && (
                   <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3">
+                    {/* Signed-In User Identity & Firestore Telemetry Card */}
+                    <div className="p-2.5 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-[#262626] pb-1.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full bg-[#A3A649]/20 border border-[#A3A649]/50 flex items-center justify-center text-[#A3A649] text-[10px] font-bold">
+                            {user?.displayName ? user.displayName[0].toUpperCase() : (user?.email ? user.email[0].toUpperCase() : "G")}
+                          </div>
+                          <span className="text-xs font-bold text-white">
+                            {user ? (user.displayName || user.email?.split("@")[0]) : "Guest Session"}
+                          </span>
+                          {user?.email && (
+                            <span className="text-[10px] text-[#A3A649] font-mono">({user.email})</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-xs border font-bold ${
+                            hoursSinceLastEntry >= 20 
+                              ? "bg-[#AD3D30]/20 border-[#AD3D30]/50 text-[#AD3D30]" 
+                              : "bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]"
+                          }`}>
+                            {hoursSinceLastEntry >= 20 ? "INACTIVE (> 20h) • NUDGE DUE" : `ACTIVE (${hoursSinceLastEntry.toFixed(1)}h ago)`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[#8C8C8C] text-[10px] uppercase font-semibold">Telemetry Mode:</span>
+                          <button
+                            type="button"
+                            onClick={() => setUseRealUserData(true)}
+                            className={`px-2 py-0.5 rounded-xs text-[10px] font-mono cursor-pointer transition-all ${
+                              useRealUserData 
+                                ? "bg-[#A3A649] text-black font-bold shadow-xs" 
+                                : "bg-[#181818] text-[#8C8C8C] border border-[#3D4028]"
+                            }`}
+                          >
+                            Live Account ({hoursSinceLastEntry.toFixed(1)}h)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setUseRealUserData(false)}
+                            className={`px-2 py-0.5 rounded-xs text-[10px] font-mono cursor-pointer transition-all ${
+                              !useRealUserData 
+                                ? "bg-[#A3A649] text-black font-bold shadow-xs" 
+                                : "bg-[#181818] text-[#8C8C8C] border border-[#3D4028]"
+                            }`}
+                          >
+                            Simulation ({simulatedInactivityHours}h)
+                          </button>
+                        </div>
+
+                        <div className="text-[10px] text-[#8C8C8C] font-mono">
+                          Last Entry: <span className="text-white font-semibold">{latestEntry ? `"${latestEntry.title.slice(0, 20)}..."` : "None"}</span> • <span className="text-[#d4da55]">{entries.length} reflections</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* How to Get Resend API Key Quick Guide */}
+                    <div className="p-2.5 bg-[#141812] border border-[#3D4028] rounded-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setShowResendHelp(!showResendHelp)}
+                          className="text-[11px] font-bold text-[#d4da55] hover:text-white flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-[#d4da55]" />
+                          <span>How to get a free Resend API key (30 seconds, 3,000 free emails)</span>
+                          <span className="text-[9px] text-[#8C8C8C] font-mono">{showResendHelp ? "▲ HIDE" : "▼ SHOW GUIDE"}</span>
+                        </button>
+                        <a
+                          href="https://resend.com/api-keys"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 font-mono"
+                        >
+                          <span>resend.com/api-keys</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
+
+                      {showResendHelp && (
+                        <div className="pt-2 border-t border-[#3D4028] space-y-2 text-[11px] text-[#cbd5e1] leading-relaxed">
+                          <ol className="list-decimal list-inside space-y-1 text-[#e2e8f0]">
+                            <li>Open <a href="https://resend.com" target="_blank" rel="noreferrer" className="text-[#A3A649] underline font-bold">resend.com</a> and sign up for free (supports instant GitHub or Google sign-in).</li>
+                            <li>In the Resend dashboard, click <strong>API Keys</strong> in the sidebar &rarr; <strong>Create API Key</strong>.</li>
+                            <li>Name it <code className="bg-[#121212] px-1 text-[#d4da55] border border-[#262626]">Ana Journal</code>, keep <strong>Full access</strong>, and click <strong>Add</strong>.</li>
+                            <li>Copy the generated key (starts with <code className="bg-[#121212] px-1 text-[#d4da55] border border-[#262626]">re_...</code>) and paste it into the <strong>Test API Key</strong> field below.</li>
+                          </ol>
+                          <div className="p-2 bg-[#AD3D30]/15 border border-[#AD3D30]/40 rounded-xs text-[10.5px] text-[#e2e8f0] space-y-1">
+                            <strong className="text-[#AD3D30] block font-bold">CRITICAL RESEND FREE TIER RULE:</strong>
+                            <p>
+                              By default, Resend sends from <code className="text-white font-mono bg-black/40 px-1">onboarding@resend.dev</code>. In this free sandbox mode, Resend <strong>only delivers to the exact email address you registered on Resend</strong>. Make sure your Recipient Email below matches your Resend account email.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {/* Recipient Email */}
                       <div className="space-y-1">
-                        <label className="text-[10px] text-[#8C8C8C] font-semibold uppercase block">
-                          Recipient Email Address
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-[10px] text-[#8C8C8C] font-semibold uppercase block">
+                            Recipient Email Address
+                          </label>
+                          {user?.email && (
+                            <span className="text-[9.5px] text-[#10b981] font-mono">
+                              Signed-In Google Account
+                            </span>
+                          )}
+                        </div>
                         <input
                           type="email"
                           value={testEmailAddress}
@@ -795,66 +910,85 @@ ${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
                       </div>
                     </div>
 
-                    {/* Inactivity Simulation Preset Chips */}
-                    <div className="space-y-1.5 pt-1">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-[#8C8C8C] font-semibold uppercase">
-                          Simulated Inactivity Timeframe:
-                        </span>
-                        <span className={`font-mono font-bold ${
-                          simulatedInactivityHours >= 20 ? "text-[#AD3D30]" : "text-[#10b981]"
-                        }`}>
-                          {simulatedInactivityHours}h elapsed • {simulatedInactivityHours >= 20 ? "LOOP CLOSURE NUDGE" : "ACTIVE (LOOP CLOSED)"}
+                    {/* Inactivity Simulation Preset Chips (shown when not in Live Account mode) */}
+                    {!useRealUserData ? (
+                      <div className="space-y-1.5 pt-1">
+                        <div className="flex items-center justify-between text-[10px]">
+                          <span className="text-[#8C8C8C] font-semibold uppercase">
+                            Simulated Inactivity Timeframe:
+                          </span>
+                          <span className={`font-mono font-bold ${
+                            simulatedInactivityHours >= 20 ? "text-[#AD3D30]" : "text-[#10b981]"
+                          }`}>
+                            {simulatedInactivityHours}h elapsed • {simulatedInactivityHours >= 20 ? "LOOP CLOSURE NUDGE" : "ACTIVE (LOOP CLOSED)"}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {[
+                            { hours: 14, label: "14h (Active • No Nudge)" },
+                            { hours: 20, label: "20h (Circadian Threshold)" },
+                            { hours: 26, label: "26h (Overdue Nudge)" },
+                            { hours: 48, label: "48h (Somatic Reset Prompt)" },
+                          ].map((preset) => (
+                            <button
+                              key={preset.hours}
+                              type="button"
+                              onClick={() => setSimulatedInactivityHours(preset.hours)}
+                              className={`px-2 py-1 rounded-xs text-[10px] font-mono transition-all cursor-pointer ${
+                                simulatedInactivityHours === preset.hours
+                                  ? "bg-[#3D4028] text-[#d4da55] border border-[#A3A649] font-bold"
+                                  : "bg-[#121212] text-[#8C8C8C] border border-[#262626] hover:border-[#3D4028]"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs text-[10.5px] text-[#8C8C8C] flex items-center justify-between font-mono">
+                        <span>Using signed-in user's exact elapsed time: <strong className="text-white">{hoursSinceLastEntry.toFixed(1)} hours</strong></span>
+                        <span className={`font-bold ${hoursSinceLastEntry >= 20 ? "text-[#AD3D30]" : "text-[#10b981]"}`}>
+                          {hoursSinceLastEntry >= 20 ? "NUDGE ELIGIBLE" : "HEALTHY LOOP"}
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {[
-                          { hours: 14, label: "14h (Active • No Nudge)" },
-                          { hours: 20, label: "20h (Circadian Threshold)" },
-                          { hours: 26, label: "26h (Overdue Nudge)" },
-                          { hours: 48, label: "48h (Somatic Reset Prompt)" },
-                        ].map((preset) => (
-                          <button
-                            key={preset.hours}
-                            type="button"
-                            onClick={() => setSimulatedInactivityHours(preset.hours)}
-                            className={`px-2 py-1 rounded-xs text-[10px] font-mono transition-all cursor-pointer ${
-                              simulatedInactivityHours === preset.hours
-                                ? "bg-[#3D4028] text-[#d4da55] border border-[#A3A649] font-bold"
-                                : "bg-[#121212] text-[#8C8C8C] border border-[#262626] hover:border-[#3D4028]"
-                            }`}
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    )}
 
                     {/* Optional Custom API Key Override for live testing */}
                     <div className="pt-1">
                       <button
                         type="button"
                         onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-                        className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer"
+                        className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-mono"
                       >
                         <Key className="w-3 h-3" />
-                        <span>{showApiKeyInput ? "Hide Direct API Key Override" : "Supply Test API Key (Zero-Deploy Verification)"}</span>
+                        <span>{showApiKeyInput ? "Hide Direct API Key Override" : "Supply Free Resend/SendGrid API Key (Instant Live Testing)"}</span>
                       </button>
 
                       {showApiKeyInput && (
                         <div className="mt-2 p-2 bg-[#121212] border border-[#3D4028] rounded-xs space-y-1">
-                          <label className="text-[10px] text-[#8C8C8C] block">
-                            Direct Secret Key (e.g., <span className="text-white font-mono">re_...</span> or <span className="text-white font-mono">SG....</span>)
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] text-[#8C8C8C] block">
+                              Direct Secret Key (starts with <span className="text-white font-mono">re_...</span> for Resend or <span className="text-white font-mono">SG....</span> for SendGrid)
+                            </label>
+                            <a
+                              href="https://resend.com/api-keys"
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-[9.5px] text-[#A3A649] hover:text-white underline font-mono flex items-center gap-0.5"
+                            >
+                              Get key <ExternalLink className="w-2 h-2" />
+                            </a>
+                          </div>
                           <input
                             type="password"
                             value={customApiKey}
                             onChange={(e) => setCustomApiKey(e.target.value)}
-                            placeholder="re_123456789... or SG.xxxxxxxx"
+                            placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxx"
                             className="w-full bg-[#181818] border border-[#3D4028] rounded-xs px-2 py-1 text-xs text-white placeholder-[#8C8C8C]/50 focus:border-[#A3A649] outline-none font-mono"
                           />
                           <span className="text-[9.5px] text-[#8C8C8C] block">
-                            Passed securely in request payload for instant verification. In production, store this in Google Cloud Secret Manager.
+                            Used directly for this request without persisting to disk. To make permanent in production, deploy with Google Cloud Secret Manager (Tab 3).
                           </span>
                         </div>
                       )}

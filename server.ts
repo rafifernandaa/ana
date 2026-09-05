@@ -1112,7 +1112,7 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<Ema
 }
 
 // Universal Email-Safe Responsive HTML Template (Standard Table Layout for Gmail, Apple Mail, Outlook)
-function createCircadianEmailHtml(userName: string, hoursInactive: number, phase: string, baseUrl: string): string {
+function createCircadianEmailHtml(userName: string, hoursInactive: number, phase: string, baseUrl: string, recipientEmail?: string): string {
   return `
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #121212; padding: 24px 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
       <tr>
@@ -1189,6 +1189,7 @@ function createCircadianEmailHtml(userName: string, hoursInactive: number, phase
             <!-- Audit Footer -->
             <tr>
               <td style="padding: 16px 24px; border-top: 1px solid #3D4028; background-color: #141414; font-size: 10.5px; color: #737373; font-family: monospace; text-align: center; line-height: 1.6;">
+                ${recipientEmail ? `Authenticated Account: <strong style="color: #A3A649;">${recipientEmail}</strong> • ` : ""}Last Activity: <strong style="color: #ffffff;">${hoursInactive.toFixed(1)}h ago</strong><br/>
                 Engineered for Google Cloud &amp; Hack2Skill Ideathon Challenge Cohort 3<br/>
                 Dispatched via Google Cloud Scheduler &amp; Cloud Run (asia-southeast1) • Synced with Cloud Firestore (us-west1)
               </td>
@@ -1267,7 +1268,8 @@ app.all(["/api/scheduler/check-inactivity", "/api/notifications/circadian-cron"]
         userName || targetEmail.split("@")[0] || "Reflective User",
         hoursElapsed,
         phase,
-        baseUrl
+        baseUrl,
+        targetEmail
       );
 
       emailResult = await sendEmailNotification({
@@ -1347,7 +1349,8 @@ app.post("/api/notifications/send-email", async (req: Request, res: Response) =>
       recipientName || recipientEmail.split("@")[0],
       Number(hoursInactive) || 22,
       String(circadianPhase),
-      baseUrl
+      baseUrl,
+      recipientEmail
     );
 
     const result = await sendEmailNotification({

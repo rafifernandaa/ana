@@ -39,9 +39,10 @@ import { SynapticPruningModal } from "./components/SynapticPruningModal";
 import { GlimmerVaultModal } from "./components/GlimmerVaultModal";
 import { SecurityArchitectureModal } from "./components/SecurityArchitectureModal";
 import { SettingsModal } from "./components/SettingsModal";
-import { Sparkles, AlertCircle, Clock, Mail } from "lucide-react";
+import { Sparkles, AlertCircle, Clock, Mail, Send, Check } from "lucide-react";
 import { useTheme } from "./lib/theme";
 import { getSheetsConfig, syncToGoogleSheets } from "./lib/sheets";
+import { dispatchTestEmail } from "./lib/email";
 
 export default function App() {
   const { isLight } = useTheme();
@@ -152,6 +153,8 @@ export default function App() {
 
   // Circadian Inactivity Banner State
   const [showInactivityBanner, setShowInactivityBanner] = useState(true);
+  const [isEmailingBannerReminder, setIsEmailingBannerReminder] = useState(false);
+  const [bannerEmailFeedback, setBannerEmailFeedback] = useState<string | null>(null);
 
   const hoursSinceLastJournal = useMemo(() => {
     if (!entries || entries.length === 0) return 24;
@@ -160,6 +163,31 @@ export default function App() {
   }, [entries]);
 
   const isUserInactiveForJournal = hoursSinceLastJournal >= 20;
+
+  const handleQuickEmailBannerReminder = async () => {
+    const targetEmail = user?.email;
+    if (!targetEmail) {
+      setActiveNavTab("settings");
+      return;
+    }
+    setIsEmailingBannerReminder(true);
+    setBannerEmailFeedback(null);
+    try {
+      const result = await dispatchTestEmail({
+        recipientEmail: targetEmail,
+        recipientName: user.displayName || targetEmail.split("@")[0],
+        hoursInactive: hoursSinceLastJournal,
+        circadianPhase: hoursSinceLastJournal >= 20 ? "Evening Loop Closure" : "Morning Dopamine Prime",
+      });
+      setBannerEmailFeedback(result.status === "sent" ? "Delivered to inbox!" : "Reminder generated!");
+      setTimeout(() => setBannerEmailFeedback(null), 4000);
+    } catch (err: any) {
+      setBannerEmailFeedback("Failed: " + (err.message || "Dispatch error"));
+      setTimeout(() => setBannerEmailFeedback(null), 5000);
+    } finally {
+      setIsEmailingBannerReminder(false);
+    }
+  };
 
   // Helper to generate a fresh entry
   const createNewBlankEntry = useCallback((userId: string): JournalEntry => {
@@ -566,16 +594,36 @@ export default function App() {
                 >
                   Deposit Open Loops
                 </button>
+                {user?.email && (
+                  <button
+                    onClick={handleQuickEmailBannerReminder}
+                    disabled={isEmailingBannerReminder}
+                    className="px-2.5 py-1 bg-[#262626] hover:bg-[#3D4028] text-[#d4da55] border border-[#3D4028] font-bold rounded-xs text-[11px] transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 disabled:opacity-50"
+                    title={`Send loop-closure prompt to ${user.email}`}
+                  >
+                    {isEmailingBannerReminder ? (
+                      <Send className="w-3 h-3 animate-pulse text-[#d4da55]" />
+                    ) : bannerEmailFeedback ? (
+                      <Check className="w-3 h-3 text-[#10b981]" />
+                    ) : (
+                      <Mail className="w-3 h-3 text-[#d4da55]" />
+                    )}
+                    <span>
+                      {isEmailingBannerReminder
+                        ? "Sending..."
+                        : bannerEmailFeedback || `Email Me (${user.email.split("@")[0]})`}
+                    </span>
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setActiveNavTab("settings");
                     setShowInactivityBanner(false);
                   }}
-                  className="px-2.5 py-1 bg-[#262626] hover:bg-[#3D4028] text-[#d4da55] border border-[#3D4028] font-bold rounded-xs text-[11px] transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+                  className="px-2 py-1 bg-[#181818] hover:bg-[#262626] text-[#8C8C8C] hover:text-white border border-[#3D4028] font-bold rounded-xs text-[11px] transition-all cursor-pointer"
                   title="Configure Circadian Email & Cloud Scheduler notifications"
                 >
-                  <Mail className="w-3 h-3 text-[#d4da55]" />
-                  <span>Email Nudges</span>
+                  Configure
                 </button>
                 <button
                   onClick={() => setShowInactivityBanner(false)}
