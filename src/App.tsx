@@ -39,7 +39,7 @@ import { SynapticPruningModal } from "./components/SynapticPruningModal";
 import { GlimmerVaultModal } from "./components/GlimmerVaultModal";
 import { SecurityArchitectureModal } from "./components/SecurityArchitectureModal";
 import { SettingsModal } from "./components/SettingsModal";
-import { Sparkles, AlertCircle, Clock } from "lucide-react";
+import { Sparkles, AlertCircle, Clock, Mail } from "lucide-react";
 import { useTheme } from "./lib/theme";
 import { getSheetsConfig, syncToGoogleSheets } from "./lib/sheets";
 
@@ -565,6 +565,17 @@ export default function App() {
                   className="px-2.5 py-1 bg-[#A3A649] hover:bg-[#A3A649]/80 text-black font-bold rounded-xs text-[11px] transition-all cursor-pointer shadow-2xs"
                 >
                   Deposit Open Loops
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveNavTab("settings");
+                    setShowInactivityBanner(false);
+                  }}
+                  className="px-2.5 py-1 bg-[#262626] hover:bg-[#3D4028] text-[#d4da55] border border-[#3D4028] font-bold rounded-xs text-[11px] transition-all cursor-pointer shadow-2xs flex items-center gap-1.5"
+                  title="Configure Circadian Email & Cloud Scheduler notifications"
+                >
+                  <Mail className="w-3 h-3 text-[#d4da55]" />
+                  <span>Email Nudges</span>
                 </button>
                 <button
                   onClick={() => setShowInactivityBanner(false)}

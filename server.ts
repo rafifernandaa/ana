@@ -942,7 +942,10 @@ function logStructured(
 
 // ============================================================================
 // Google Cloud Architecture: Transactional Email Notification Service
-// Supports SendGrid (Google Cloud Marketplace), Resend, or live preview mode
+// ============================================================================
+// Google Cloud Architecture: Transactional Email Notification Service
+// Supports SendGrid (Google Cloud Marketplace), Resend REST API, or diagnostic mode
+// Injected via Google Cloud Secret Manager into Cloud Run environment variables
 // ============================================================================
 interface EmailDispatchOptions {
   to: string;
@@ -950,29 +953,99 @@ interface EmailDispatchOptions {
   subject: string;
   html: string;
   text: string;
+  provider?: "sendgrid" | "resend" | "auto";
+  apiKey?: string;
+  fromEmail?: string;
 }
 
-async function sendEmailNotification(options: EmailDispatchOptions): Promise<{
+interface EmailDispatchResult {
   success: boolean;
   provider: "sendgrid" | "resend" | "preview_mock";
   message: string;
   preview?: string;
-}> {
-  const { to, name, subject, html, text } = options;
+  id?: string;
+  errorDetail?: string;
+}
 
-  // 1. SendGrid API (Google Cloud Marketplace standard partner)
-  if (process.env.SENDGRID_API_KEY) {
+async function sendEmailNotification(options: EmailDispatchOptions): Promise<EmailDispatchResult> {
+  const { to, name, subject, html, text, provider = "auto", apiKey, fromEmail } = options;
+
+  // Determine active provider: explicit override -> apiKey prefix check -> environment variable check
+  const hasResend = !!(apiKey && (apiKey.startsWith("re_") || provider === "resend")) || (!apiKey && !!process.env.RESEND_API_KEY && provider !== "sendgrid");
+  const hasSendGrid = !!(apiKey && (apiKey.startsWith("SG.") || provider === "sendgrid")) || (!apiKey && !!process.env.SENDGRID_API_KEY && provider !== "resend");
+
+  // 1. Resend REST API (Direct HTTP POST without heavy SDKs)
+  if ((provider === "resend" || (provider === "auto" && hasResend)) && (apiKey || process.env.RESEND_API_KEY)) {
+    const key = apiKey || process.env.RESEND_API_KEY;
+    const sender = fromEmail || process.env.RESEND_FROM_EMAIL || "Ana Journal <onboarding@resend.dev>";
+
     try {
-      const fromEmail = process.env.SENDGRID_FROM_EMAIL || "notifications@ana-journal.app";
-      const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
+      const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${process.env.SENDGRID_API_KEY}`,
+          "Authorization": `Bearer ${key}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          personalizations: [{ to: [{ email: to, name: name || to }] }],
-          from: { email: fromEmail, name: "Ana Circadian Journal" },
+          from: sender.includes("<") ? sender : `Ana Journal <${sender}>`,
+          to: [to],
+          subject,
+          html,
+          text,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({ id: "sent" }));
+        logStructured("INFO", "Email dispatched successfully via Resend API", {
+          recipient: to,
+          resendId: data.id,
+          provider: "resend",
+        });
+        return {
+          success: true,
+          provider: "resend",
+          message: `Live email dispatched to ${to} via Resend REST API (ID: ${data.id || "delivered"}).`,
+          id: data.id,
+          preview: html,
+        };
+      }
+
+      const errData = await res.json().catch(() => ({ message: res.statusText }));
+      const errMsg = errData.message || (typeof errData === "string" ? errData : JSON.stringify(errData));
+      logStructured("ERROR", "Resend API returned error status", { status: res.status, error: errMsg });
+      return {
+        success: false,
+        provider: "resend",
+        message: `Resend dispatch failed (${res.status}): ${errMsg}`,
+        errorDetail: errMsg,
+      };
+    } catch (err: any) {
+      logStructured("ERROR", "Resend API request exception", { error: err?.message });
+      return {
+        success: false,
+        provider: "resend",
+        message: `Resend connection failed: ${err?.message || err}`,
+        errorDetail: err?.message,
+      };
+    }
+  }
+
+  // 2. SendGrid REST API (Google Cloud Marketplace Preferred Transactional Email Partner)
+  if ((provider === "sendgrid" || (provider === "auto" && hasSendGrid)) && (apiKey || process.env.SENDGRID_API_KEY)) {
+    const key = apiKey || process.env.SENDGRID_API_KEY;
+    const sender = fromEmail || process.env.SENDGRID_FROM_EMAIL || "notifications@ana-journal.app";
+
+    try {
+      const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: to, name: name || to.split("@")[0] }] }],
+          from: { email: sender, name: "Ana Circadian Journal" },
           subject,
           content: [
             { type: "text/plain", value: text },
@@ -982,48 +1055,50 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<{
       });
 
       if (res.ok || res.status === 202) {
-        logStructured("INFO", "Email sent successfully via SendGrid", { recipient: to, provider: "sendgrid" });
-        return { success: true, provider: "sendgrid", message: "Email dispatched via SendGrid API." };
+        logStructured("INFO", "Email dispatched successfully via SendGrid API", {
+          recipient: to,
+          provider: "sendgrid",
+          statusCode: res.status,
+        });
+        return {
+          success: true,
+          provider: "sendgrid",
+          message: `Live email dispatched to ${to} via SendGrid REST API (${res.status} Accepted).`,
+          preview: html,
+        };
       }
+
       const errText = await res.text();
-      logStructured("WARNING", "SendGrid returned non-200 status", { status: res.status, error: errText });
+      let parsedErr = errText;
+      try {
+        const json = JSON.parse(errText);
+        if (json.errors && Array.isArray(json.errors)) {
+          parsedErr = json.errors.map((e: any) => e.message).join("; ");
+        }
+      } catch {
+        // Keep raw text
+      }
+
+      logStructured("ERROR", "SendGrid returned non-200 status", { status: res.status, error: parsedErr });
+      return {
+        success: false,
+        provider: "sendgrid",
+        message: `SendGrid dispatch failed (${res.status}): ${parsedErr}`,
+        errorDetail: parsedErr,
+      };
     } catch (err: any) {
-      logStructured("ERROR", "SendGrid API request failed", { error: err?.message });
+      logStructured("ERROR", "SendGrid API request exception", { error: err?.message });
+      return {
+        success: false,
+        provider: "sendgrid",
+        message: `SendGrid connection failed: ${err?.message || err}`,
+        errorDetail: err?.message,
+      };
     }
   }
 
-  // 2. Resend API
-  if (process.env.RESEND_API_KEY) {
-    try {
-      const fromEmail = process.env.RESEND_FROM_EMAIL || "onboarding@resend.dev";
-      const res = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: `Ana Journal <${fromEmail}>`,
-          to: [to],
-          subject,
-          html,
-          text,
-        }),
-      });
-
-      if (res.ok) {
-        logStructured("INFO", "Email sent successfully via Resend", { recipient: to, provider: "resend" });
-        return { success: true, provider: "resend", message: "Email dispatched via Resend API." };
-      }
-      const errText = await res.text();
-      logStructured("WARNING", "Resend returned non-200 status", { status: res.status, error: errText });
-    } catch (err: any) {
-      logStructured("ERROR", "Resend API request failed", { error: err?.message });
-    }
-  }
-
-  // 3. Fallback / Test Preview Mode
-  logStructured("INFO", "Circadian email notification generated in preview mode", {
+  // 3. Fallback: Diagnostic Preview Mode (Secrets Not Yet Configured in Secret Manager)
+  logStructured("INFO", "Circadian email notification generated in diagnostic preview mode", {
     recipient: to,
     subject,
   });
@@ -1031,59 +1106,145 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<{
   return {
     success: true,
     provider: "preview_mock",
-    message: "Email generated successfully. Configure SENDGRID_API_KEY or RESEND_API_KEY in Cloud Run to enable live inbox delivery.",
+    message: "Diagnostic Mode: API keys not detected in Google Cloud Secret Manager or environment variables. Rendered complete email template below. Configure RESEND_API_KEY or SENDGRID_API_KEY to activate live inbox delivery.",
     preview: html,
   };
 }
 
-// Helper to generate the responsive HTML email template
+// Universal Email-Safe Responsive HTML Template (Standard Table Layout for Gmail, Apple Mail, Outlook)
 function createCircadianEmailHtml(userName: string, hoursInactive: number, phase: string, baseUrl: string): string {
   return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 540px; margin: 0 auto; background-color: #181818; color: #e2e8f0; border: 1px solid #3D4028; border-radius: 8px; overflow: hidden; padding: 28px;">
-      <div style="display: flex; align-items: center; margin-bottom: 24px; border-bottom: 1px solid #3D4028; padding-bottom: 16px;">
-        <span style="font-size: 18px; font-weight: 700; color: #ffffff; letter-spacing: 0.05em; font-family: monospace;">Ana // Circadian System</span>
-      </div>
+    <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #121212; padding: 24px 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+      <tr>
+        <td align="center">
+          <table cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width: 560px; background-color: #181818; border: 1px solid #3D4028; border-radius: 6px; overflow: hidden; color: #e2e8f0;">
+            <!-- Brand Header -->
+            <tr>
+              <td style="padding: 20px 24px; border-bottom: 1px solid #3D4028; background-color: #1c1c1c;">
+                <table cellpadding="0" cellspacing="0" border="0" width="100%">
+                  <tr>
+                    <td style="font-size: 16px; font-weight: 700; color: #ffffff; letter-spacing: 0.05em; font-family: monospace;">
+                      <span style="display: inline-block; width: 24px; height: 24px; line-height: 24px; text-align: center; background-color: #262626; border: 1px solid #A3A649; border-radius: 50%; color: #A3A649; font-size: 12px; margin-right: 8px;">A</span>
+                      ANA // CIRCADIAN SYSTEM
+                    </td>
+                    <td align="right" style="font-size: 10px; color: #A3A649; font-family: monospace; font-weight: 600; text-transform: uppercase;">
+                      [LOOP CLOSURE]
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
 
-      <div style="background-color: #262626; border: 1px solid #3D4028; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px;">
-        <span style="color: #A3A649; font-family: monospace; font-size: 11px; text-transform: uppercase; font-weight: bold;">[CIRCADIAN INACTIVITY ALERT]</span>
-        <h3 style="margin: 6px 0 0 0; color: #ffffff; font-size: 16px;">Notice any unresolved mental tension, ${userName}?</h3>
-      </div>
+            <!-- Content Area -->
+            <tr>
+              <td style="padding: 24px;">
+                <!-- Inactivity Alert Box -->
+                <div style="background-color: #262626; border-left: 3px solid #AD3D30; border-top: 1px solid #3D4028; border-right: 1px solid #3D4028; border-bottom: 1px solid #3D4028; padding: 14px 16px; border-radius: 4px; margin-bottom: 20px;">
+                  <span style="color: #A3A649; font-family: monospace; font-size: 10px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.08em; display: block; margin-bottom: 4px;">
+                    CIRCADIAN INACTIVITY ALERT • ${phase.toUpperCase()}
+                  </span>
+                  <h2 style="margin: 0; color: #ffffff; font-size: 16px; font-weight: 600; line-height: 1.4;">
+                    Notice any unresolved mental tension, ${userName}?
+                  </h2>
+                </div>
 
-      <p style="color: #d1d5db; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
-        It has been <strong>${hoursInactive.toFixed(1)} hours</strong> since your last mindful reflection. In the <strong>${phase}</strong> window, unclosed cognitive loops tend to consume working memory and elevate subconscious cortisol.
-      </p>
+                <!-- Main Narrative -->
+                <p style="color: #d1d5db; font-size: 13.5px; line-height: 1.65; margin: 0 0 16px 0;">
+                  It has been <strong style="color: #ffffff;">${hoursInactive.toFixed(1)} hours</strong> since your last mindful reflection. In the <strong style="color: #A3A649;">${phase}</strong> window, unclosed cognitive loops tend to consume prefrontal working memory and elevate subconscious cortisol.
+                </p>
 
-      <p style="color: #9ca3af; font-size: 13px; line-height: 1.5; margin-bottom: 24px;">
-        Take 90 seconds to deposit your open loops, anchor a single micro-glimmer, or run a 60-second physiological sigh reset.
-      </p>
+                <!-- Somatic Reset Box -->
+                <div style="background-color: #1f2316; border: 1px dashed #A3A649; padding: 12px 14px; border-radius: 4px; margin-bottom: 24px;">
+                  <div style="font-size: 11px; font-weight: bold; color: #d4da55; margin-bottom: 4px; font-family: monospace;">
+                    🌿 60-SECOND PHYSIOLOGICAL SIGH RESET:
+                  </div>
+                  <div style="font-size: 12px; color: #cbd5e1; line-height: 1.5;">
+                    Take two quick inhales through the nose, followed by a long, slow sigh exhalation through the mouth. Repeat twice to down-regulate sympathetic arousal before returning to calm focus.
+                  </div>
+                </div>
 
-      <div style="text-align: center; margin: 30px 0;">
-        <a href="${baseUrl}/?action=circadian" style="display: inline-block; background-color: #A3A649; color: #121212; font-weight: 700; font-size: 13px; text-decoration: none; padding: 12px 24px; border-radius: 4px; letter-spacing: 0.05em; font-family: monospace;">
-          OPEN ANA STUDIO & DEPOSIT LOOPS
-        </a>
-      </div>
+                <!-- Call to Action Button -->
+                <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin: 28px 0;">
+                  <tr>
+                    <td align="center">
+                      <table cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td align="center" style="background-color: #A3A649; border-radius: 4px;">
+                            <a href="${baseUrl}/?action=circadian&source=email_nudge" target="_blank" style="display: inline-block; padding: 13px 28px; font-family: monospace, -apple-system, sans-serif; font-size: 13px; font-weight: 700; color: #121212; text-decoration: none; letter-spacing: 0.05em; border-radius: 4px;">
+                              OPEN ANA STUDIO &amp; DEPOSIT OPEN LOOPS &rarr;
+                            </a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
 
-      <div style="border-top: 1px solid #3D4028; padding-top: 16px; margin-top: 24px; font-size: 11px; color: #8C8C8C; font-family: monospace; text-align: center;">
-        Dispatched automatically via Google Cloud Scheduler & Cloud Run in asia-southeast1.<br/>
-        Synced with Cloud Firestore ai-studio-1964eda9-cc24-452a-bee7-3ab0780e0478.
-      </div>
-    </div>
+                <p style="color: #8C8C8C; font-size: 11.5px; line-height: 1.5; margin: 0; text-align: center;">
+                  Taking just 90 seconds to externalize unresolved thoughts clears mental cache and facilitates natural restorative rest.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Audit Footer -->
+            <tr>
+              <td style="padding: 16px 24px; border-top: 1px solid #3D4028; background-color: #141414; font-size: 10.5px; color: #737373; font-family: monospace; text-align: center; line-height: 1.6;">
+                Engineered for Google Cloud &amp; Hack2Skill Ideathon Challenge Cohort 3<br/>
+                Dispatched via Google Cloud Scheduler &amp; Cloud Run (asia-southeast1) • Synced with Cloud Firestore (us-west1)
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
   `;
 }
 
-// API: Cloud Scheduler Inactivity Evaluation & Direct Email Notification
-app.all("/api/scheduler/check-inactivity", async (req: Request, res: Response) => {
+// API: Notification & Email Provider Configuration Status
+app.get("/api/notifications/config", (_req: Request, res: Response) => {
+  const hasResend = !!process.env.RESEND_API_KEY;
+  const hasSendGrid = !!process.env.SENDGRID_API_KEY;
+  const activeProvider = hasResend ? "resend" : hasSendGrid ? "sendgrid" : "preview_mock";
+
+  return res.json({
+    activeProvider,
+    hasResendKey: hasResend,
+    hasSendgridKey: hasSendGrid,
+    resendFromEmail: process.env.RESEND_FROM_EMAIL || "Ana Journal <onboarding@resend.dev>",
+    sendgridFromEmail: process.env.SENDGRID_FROM_EMAIL || "notifications@ana-journal.app",
+    isCloudRun: !!process.env.K_SERVICE,
+    cloudRunService: process.env.K_SERVICE || "Ana",
+    cloudSchedulerRegion: "asia-southeast1",
+    recommendedCron: "0 */4 * * *",
+    cronEndpoint: "/api/scheduler/check-inactivity",
+    timestamp: new Date().toISOString(),
+  });
+});
+
+// API: Cloud Scheduler Inactivity Evaluation & Direct Email Notification Webhook
+// Compatible with both Cloud Scheduler endpoints: /api/scheduler/check-inactivity and /api/notifications/circadian-cron
+app.all(["/api/scheduler/check-inactivity", "/api/notifications/circadian-cron"], async (req: Request, res: Response) => {
   try {
     const payload = req.method === "GET" ? req.query : req.body;
-    const { userId, userEmail, userName, lastEntryAt } = (payload || {}) as any;
+    const { 
+      userId, 
+      userEmail, 
+      userName, 
+      lastEntryAt, 
+      thresholdHours = 20,
+      apiKey,
+      provider,
+      fromEmail
+    } = (payload || {}) as any;
     
     const now = Date.now();
+    const parsedThreshold = Number(thresholdHours) || 20;
     const lastTimestamp = typeof lastEntryAt === "number" && lastEntryAt > 0 
       ? lastEntryAt 
       : (typeof lastEntryAt === "string" ? parseInt(lastEntryAt, 10) : now - 22 * 60 * 60 * 1000);
     
     const hoursElapsed = Math.max(0, (now - lastTimestamp) / (1000 * 60 * 60));
-    const isInactive = hoursElapsed >= 20;
+    const isInactive = hoursElapsed >= parsedThreshold;
 
     const hourOfDay = new Date().getHours();
     const phase = (hourOfDay >= 5 && hourOfDay < 12) 
@@ -1112,29 +1273,35 @@ app.all("/api/scheduler/check-inactivity", async (req: Request, res: Response) =
       emailResult = await sendEmailNotification({
         to: targetEmail,
         name: userName,
-        subject: `Ana // Circadian Check-in: ${phase}`,
+        subject: `Ana // Circadian Inactivity Alert: ${phase}`,
         html: emailHtml,
         text: nudgeMessage,
+        apiKey,
+        provider,
+        fromEmail,
       });
     }
 
     logStructured("INFO", "Cloud Scheduler Inactivity Evaluated", {
       targetUser: userId || targetEmail || "guest",
-      hoursElapsed,
+      hoursElapsed: parseFloat(hoursElapsed.toFixed(1)),
+      thresholdHours: parsedThreshold,
       isInactive,
       emailDispatched: !!emailResult,
+      emailStatus: emailResult?.provider,
+      schedulerTrigger: req.headers["x-cloudscheduler"] ? "CloudScheduler" : "ManualDiagnostic",
     });
 
     return res.json({
       status: "success",
       targetUser: userId || targetEmail || "guest_authenticated",
       schedulerRegion: "asia-southeast1 (Singapore)",
-      cloudRunService: "Ana",
+      cloudRunService: process.env.K_SERVICE || "Ana",
       firestoreDatabase: "ai-studio-1964eda9-cc24-452a-bee7-3ab0780e0478 (us-west1, Oregon)",
       evaluation: {
         lastEntryAt: lastTimestamp,
         hoursElapsed: parseFloat(hoursElapsed.toFixed(1)),
-        inactivityThresholdHours: 20,
+        inactivityThresholdHours: parsedThreshold,
         isInactive,
         circadianPhase: phase,
         actionRequired: isInactive ? "DISPATCH_CIRCADIAN_NUDGE" : "NO_ACTION_USER_ACTIVE",
@@ -1161,7 +1328,15 @@ app.all("/api/scheduler/check-inactivity", async (req: Request, res: Response) =
 // API: Dedicated Email Notification Dispatch / Test Endpoint
 app.post("/api/notifications/send-email", async (req: Request, res: Response) => {
   try {
-    const { recipientEmail, recipientName, hoursInactive = 22, circadianPhase = "Evening Loop Closure" } = req.body || {};
+    const { 
+      recipientEmail, 
+      recipientName, 
+      hoursInactive = 22, 
+      circadianPhase = "Evening Loop Closure",
+      apiKey,
+      provider,
+      fromEmail
+    } = req.body || {};
 
     if (!recipientEmail || typeof recipientEmail !== "string" || !recipientEmail.includes("@")) {
       return res.status(400).json({ error: "A valid recipientEmail is required." });
@@ -1178,17 +1353,32 @@ app.post("/api/notifications/send-email", async (req: Request, res: Response) =>
     const result = await sendEmailNotification({
       to: recipientEmail,
       name: recipientName,
-      subject: `Ana // Circadian Check-in: ${circadianPhase}`,
+      subject: `Ana // Circadian Inactivity Alert: ${circadianPhase}`,
       html,
-      text: `Notice any unresolved tension? It has been ${hoursInactive} hours since your last reflection. Take 90 seconds to deposit open loops before rest.`,
+      text: `Notice any unresolved tension, ${recipientName || "there"}? It has been ${hoursInactive} hours since your last reflection. Take 90 seconds to deposit open loops in Ana Studio: ${baseUrl}/?action=circadian`,
+      apiKey,
+      provider,
+      fromEmail,
     });
 
+    if (!result.success) {
+      return res.status(400).json({
+        status: "error",
+        error: result.message,
+        provider: result.provider,
+        recipient: recipientEmail,
+        errorDetail: result.errorDetail,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return res.json({
-      status: "success",
+      status: result.provider === "preview_mock" ? "preview" : "sent",
       recipient: recipientEmail,
       provider: result.provider,
       message: result.message,
-      htmlPreview: result.preview,
+      id: result.id,
+      htmlPreview: result.preview || html,
       timestamp: new Date().toISOString(),
     });
   } catch (error: any) {

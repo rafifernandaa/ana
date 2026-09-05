@@ -44,7 +44,10 @@ import {
 } from "../lib/sheets";
 import { 
   dispatchTestEmail, 
-  EmailDispatchResult 
+  fetchEmailConfig,
+  runCircadianSchedulerCheck,
+  EmailDispatchResult,
+  EmailConfigResponse
 } from "../lib/email";
 
 interface ConfigWorkspaceProps {
@@ -82,6 +85,14 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
   const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
   const [emailTestResult, setEmailTestResult] = useState<EmailDispatchResult | null>(null);
   const [showEmailPreview, setShowEmailPreview] = useState(false);
+  const [emailConfig, setEmailConfig] = useState<EmailConfigResponse | null>(null);
+  const [emailProvider, setEmailProvider] = useState<"auto" | "resend" | "sendgrid">("auto");
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [simulatedInactivityHours, setSimulatedInactivityHours] = useState<number>(22);
+  const [inactivityThreshold, setInactivityThreshold] = useState<number>(20);
+  const [emailSubTab, setEmailSubTab] = useState<"dispatch" | "scheduler" | "runbook">("dispatch");
+  const [copiedRunbook, setCopiedRunbook] = useState<string | null>(null);
 
   // Google Sheets Integration States
   const [sheetsConfig, setSheetsConfig] = useState<SheetsSyncConfig>(getSheetsConfig());
@@ -96,6 +107,13 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
       setTestEmailAddress(user.email);
     }
   }, [user]);
+
+  // Load server-side email provider status from Cloud Run
+  useEffect(() => {
+    fetchEmailConfig()
+      .then((cfg) => setEmailConfig(cfg))
+      .catch((err) => console.warn("Failed to load email config from Cloud Run:", err));
+  }, []);
 
   const handleEnableNotifications = async () => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -140,15 +158,15 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
   const handleRunSchedulerCheck = async () => {
     setIsCheckingScheduler(true);
     try {
-      const res = await fetch("/api/scheduler/check-inactivity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: user ? user.uid : "guest_authenticated",
-          lastEntryAt: latestEntry ? latestEntry.createdAt : null,
-        }),
+      const data = await runCircadianSchedulerCheck({
+        userId: user ? user.uid : "guest_authenticated",
+        userEmail: testEmailAddress || user?.email || undefined,
+        userName: user?.displayName || (testEmailAddress ? testEmailAddress.split("@")[0] : "Reflective User"),
+        lastEntryAt: latestEntry ? latestEntry.createdAt : (Date.now() - simulatedInactivityHours * 60 * 60 * 1000),
+        thresholdHours: inactivityThreshold,
+        provider: emailProvider,
+        apiKey: customApiKey.trim() || undefined,
       });
-      const data = await res.json();
       setSchedulerDiagnostics(data);
     } catch (err: any) {
       setSchedulerDiagnostics({ error: err?.message || "Failed to contact Cloud Run service Ana" });
@@ -165,8 +183,10 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
       const res = await dispatchTestEmail({
         recipientEmail: testEmailAddress,
         recipientName: user?.displayName || testEmailAddress.split("@")[0],
-        hoursInactive: hoursSinceLastEntry,
-        circadianPhase: "Evening Loop Closure",
+        hoursInactive: simulatedInactivityHours,
+        circadianPhase: simulatedInactivityHours >= 20 ? "Evening Loop Closure" : "Morning Dopamine Prime",
+        provider: emailProvider,
+        apiKey: customApiKey.trim() || undefined,
       });
       setEmailTestResult(res);
     } catch (err: any) {
@@ -175,12 +195,18 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
         provider: "preview_mock",
         message: err?.message || "Failed to dispatch test email",
         recipient: testEmailAddress,
-        subject: "Ana // Circadian Check-in",
+        subject: "Ana // Circadian Inactivity Alert",
         timestamp: new Date().toISOString(),
       });
     } finally {
       setIsSendingTestEmail(false);
     }
+  };
+
+  const handleCopyRunbook = (snippet: string, key: string) => {
+    navigator.clipboard.writeText(snippet);
+    setCopiedRunbook(key);
+    setTimeout(() => setCopiedRunbook(null), 2500);
   };
 
   const handleUpdateSheetsConfig = (updates: Partial<SheetsSyncConfig>) => {
@@ -673,83 +699,365 @@ ${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
               </div>
 
               {/* Card 3: Direct Circadian Inactivity Email Notifications */}
-              <div className="bg-[#262626] border border-[#3D4028] p-4 rounded-xs space-y-3">
-                <div className="flex items-center justify-between">
+              <div className="bg-[#262626] border border-[#3D4028] p-4 rounded-xs space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#3D4028] pb-3">
                   <div className="flex items-center gap-2 text-xs font-bold text-white">
                     <Mail className="w-4 h-4 text-[#A3A649]" />
                     <span>DIRECT CIRCADIAN INACTIVITY EMAIL NOTIFICATIONS</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-xs bg-[#A3A649]/20 border border-[#A3A649]/50 text-[10px] text-[#A3A649] font-semibold">
-                    CLOUD SCHEDULER + SENDGRID/RESEND
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded-xs border text-[10px] font-bold ${
+                      emailConfig?.hasResendKey
+                        ? "bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]"
+                        : emailConfig?.hasSendgridKey
+                        ? "bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]"
+                        : "bg-[#A3A649]/20 border-[#A3A649]/50 text-[#A3A649]"
+                    }`}>
+                      {emailConfig?.hasResendKey
+                        ? "RESEND REST API (SECRET MANAGER)"
+                        : emailConfig?.hasSendgridKey
+                        ? "SENDGRID API (SECRET MANAGER)"
+                        : "DIAGNOSTIC PREVIEW MODE"}
+                    </span>
+                  </div>
                 </div>
 
                 <p className="text-xs text-[#8C8C8C] leading-relaxed">
-                  When Cloud Scheduler runs its inactivity cron and detects &gt;20 hours without a journal reflection, Ana directly dispatches a compassionate circadian loop-closure email to your inbox with a 1-click magic link back into the Studio.
+                  Real-world transactional notification engine powered by Google Cloud Scheduler, Cloud Run, and SendGrid/Resend REST APIs. When inactivity exceeds circadian threshold (&gt;20h), Ana automatically delivers a compassionate loop-closure prompt to your inbox.
                 </p>
 
-                <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                    <div className="flex-1 space-y-1">
-                      <label className="text-[10px] text-[#8C8C8C] font-semibold uppercase block">
-                        Recipient Email Address
-                      </label>
-                      <input
-                        type="email"
-                        value={testEmailAddress}
-                        onChange={(e) => setTestEmailAddress(e.target.value)}
-                        placeholder="user@example.com"
-                        className="w-full bg-[#121212] border border-[#3D4028] rounded-xs px-2.5 py-1.5 text-xs text-white placeholder-[#8C8C8C]/50 focus:border-[#A3A649] outline-none font-mono"
-                      />
-                    </div>
-                    <div className="sm:self-end pt-1 sm:pt-0">
-                      <button
-                        onClick={handleSendTestEmail}
-                        disabled={isSendingTestEmail || !testEmailAddress}
-                        className="w-full sm:w-auto px-3 py-1.5 bg-[#AD3D30] hover:bg-[#AD3D30]/80 text-white rounded-xs text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
-                      >
-                        <Send className={`w-3.5 h-3.5 ${isSendingTestEmail ? "animate-pulse" : ""}`} />
-                        <span>{isSendingTestEmail ? "Dispatching..." : "Send Test Inactivity Email"}</span>
-                      </button>
-                    </div>
-                  </div>
+                {/* Sub-Tabs: Dispatch vs Scheduler Cron vs Runbook */}
+                <div className="flex items-center gap-1 border-b border-[#3D4028] pb-2 text-[11px]">
+                  <button
+                    onClick={() => setEmailSubTab("dispatch")}
+                    className={`px-3 py-1 rounded-xs font-bold transition-all cursor-pointer ${
+                      emailSubTab === "dispatch"
+                        ? "bg-[#A3A649] text-black"
+                        : "bg-[#181818] text-[#8C8C8C] hover:text-white border border-[#3D4028]"
+                    }`}
+                  >
+                    1. Direct Live Dispatch
+                  </button>
+                  <button
+                    onClick={() => setEmailSubTab("scheduler")}
+                    className={`px-3 py-1 rounded-xs font-bold transition-all cursor-pointer ${
+                      emailSubTab === "scheduler"
+                        ? "bg-[#A3A649] text-black"
+                        : "bg-[#181818] text-[#8C8C8C] hover:text-white border border-[#3D4028]"
+                    }`}
+                  >
+                    2. Cloud Scheduler Simulator
+                  </button>
+                  <button
+                    onClick={() => setEmailSubTab("runbook")}
+                    className={`px-3 py-1 rounded-xs font-bold transition-all cursor-pointer ${
+                      emailSubTab === "runbook"
+                        ? "bg-[#A3A649] text-black"
+                        : "bg-[#181818] text-[#8C8C8C] hover:text-white border border-[#3D4028]"
+                    }`}
+                  >
+                    3. GCP Secret Manager Runbook
+                  </button>
+                </div>
 
-                  {emailTestResult && (
-                    <div className={`p-2.5 rounded-xs border text-xs space-y-1.5 ${
-                      emailTestResult.status === "error"
-                        ? "bg-[#AD3D30]/10 border-[#AD3D30] text-[#AD3D30]"
-                        : "bg-[#10b981]/10 border-[#10b981]/40 text-[#10b981]"
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold flex items-center gap-1">
-                          {emailTestResult.status === "error" ? <AlertCircle className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
-                          {emailTestResult.status === "error" ? "Dispatch Error" : "Email Notification Processed"}
+                {/* TAB 1: Direct Live Dispatch */}
+                {emailSubTab === "dispatch" && (
+                  <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {/* Recipient Email */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#8C8C8C] font-semibold uppercase block">
+                          Recipient Email Address
+                        </label>
+                        <input
+                          type="email"
+                          value={testEmailAddress}
+                          onChange={(e) => setTestEmailAddress(e.target.value)}
+                          placeholder="user@example.com"
+                          className="w-full bg-[#121212] border border-[#3D4028] rounded-xs px-2.5 py-1.5 text-xs text-white placeholder-[#8C8C8C]/50 focus:border-[#A3A649] outline-none font-mono"
+                        />
+                      </div>
+
+                      {/* Active Provider Selector */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-[#8C8C8C] font-semibold uppercase block">
+                          Dispatch Provider
+                        </label>
+                        <select
+                          value={emailProvider}
+                          onChange={(e) => setEmailProvider(e.target.value as any)}
+                          className="w-full bg-[#121212] border border-[#3D4028] rounded-xs px-2.5 py-1.5 text-xs text-white focus:border-[#A3A649] outline-none font-mono"
+                        >
+                          <option value="auto">Auto-Detect (Cloud Run Secrets / Key Prefix)</option>
+                          <option value="resend">Resend REST API (api.resend.com)</option>
+                          <option value="sendgrid">SendGrid REST API (api.sendgrid.com)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Inactivity Simulation Preset Chips */}
+                    <div className="space-y-1.5 pt-1">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-[#8C8C8C] font-semibold uppercase">
+                          Simulated Inactivity Timeframe:
                         </span>
-                        <span className="text-[10px] font-mono text-[#8C8C8C]">
-                          Provider: {emailTestResult.provider}
+                        <span className={`font-mono font-bold ${
+                          simulatedInactivityHours >= 20 ? "text-[#AD3D30]" : "text-[#10b981]"
+                        }`}>
+                          {simulatedInactivityHours}h elapsed • {simulatedInactivityHours >= 20 ? "LOOP CLOSURE NUDGE" : "ACTIVE (LOOP CLOSED)"}
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#e2e8f0]">
-                        {emailTestResult.message}
-                      </p>
-                      {emailTestResult.htmlPreview && (
-                        <div className="pt-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[
+                          { hours: 14, label: "14h (Active • No Nudge)" },
+                          { hours: 20, label: "20h (Circadian Threshold)" },
+                          { hours: 26, label: "26h (Overdue Nudge)" },
+                          { hours: 48, label: "48h (Somatic Reset Prompt)" },
+                        ].map((preset) => (
                           <button
-                            onClick={() => setShowEmailPreview(!showEmailPreview)}
-                            className="text-[10px] text-[#A3A649] underline cursor-pointer hover:text-white"
+                            key={preset.hours}
+                            type="button"
+                            onClick={() => setSimulatedInactivityHours(preset.hours)}
+                            className={`px-2 py-1 rounded-xs text-[10px] font-mono transition-all cursor-pointer ${
+                              simulatedInactivityHours === preset.hours
+                                ? "bg-[#3D4028] text-[#d4da55] border border-[#A3A649] font-bold"
+                                : "bg-[#121212] text-[#8C8C8C] border border-[#262626] hover:border-[#3D4028]"
+                            }`}
                           >
-                            {showEmailPreview ? "Hide Email Preview" : "View Live Email HTML Preview"}
+                            {preset.label}
                           </button>
-                          {showEmailPreview && (
-                            <div className="mt-2 p-2 bg-[#121212] border border-[#3D4028] rounded-xs max-h-60 overflow-y-auto">
-                              <div dangerouslySetInnerHTML={{ __html: emailTestResult.htmlPreview }} />
-                            </div>
-                          )}
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Optional Custom API Key Override for live testing */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKeyInput(!showApiKeyInput)}
+                        className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer"
+                      >
+                        <Key className="w-3 h-3" />
+                        <span>{showApiKeyInput ? "Hide Direct API Key Override" : "Supply Test API Key (Zero-Deploy Verification)"}</span>
+                      </button>
+
+                      {showApiKeyInput && (
+                        <div className="mt-2 p-2 bg-[#121212] border border-[#3D4028] rounded-xs space-y-1">
+                          <label className="text-[10px] text-[#8C8C8C] block">
+                            Direct Secret Key (e.g., <span className="text-white font-mono">re_...</span> or <span className="text-white font-mono">SG....</span>)
+                          </label>
+                          <input
+                            type="password"
+                            value={customApiKey}
+                            onChange={(e) => setCustomApiKey(e.target.value)}
+                            placeholder="re_123456789... or SG.xxxxxxxx"
+                            className="w-full bg-[#181818] border border-[#3D4028] rounded-xs px-2 py-1 text-xs text-white placeholder-[#8C8C8C]/50 focus:border-[#A3A649] outline-none font-mono"
+                          />
+                          <span className="text-[9.5px] text-[#8C8C8C] block">
+                            Passed securely in request payload for instant verification. In production, store this in Google Cloud Secret Manager.
+                          </span>
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
+
+                    {/* Dispatch Action Button */}
+                    <div className="pt-2 flex items-center justify-between">
+                      <button
+                        onClick={handleSendTestEmail}
+                        disabled={isSendingTestEmail || !testEmailAddress}
+                        className="px-4 py-2 bg-[#AD3D30] hover:bg-[#AD3D30]/80 text-white rounded-xs text-xs font-bold transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50 shadow-md"
+                      >
+                        <Send className={`w-3.5 h-3.5 ${isSendingTestEmail ? "animate-pulse" : ""}`} />
+                        <span>{isSendingTestEmail ? "Dispatching Live Email..." : "Send Circadian Inactivity Email"}</span>
+                      </button>
+                      <span className="text-[10px] text-[#8C8C8C] font-mono">
+                        POST /api/notifications/send-email
+                      </span>
+                    </div>
+
+                    {/* Dispatch Result Display */}
+                    {emailTestResult && (
+                      <div className={`p-3 rounded-xs border text-xs space-y-2 animate-in fade-in duration-200 ${
+                        emailTestResult.status === "error"
+                          ? "bg-[#AD3D30]/15 border-[#AD3D30] text-[#e2e8f0]"
+                          : emailTestResult.status === "sent"
+                          ? "bg-[#10b981]/15 border-[#10b981] text-[#e2e8f0]"
+                          : "bg-[#A3A649]/15 border-[#A3A649] text-[#e2e8f0]"
+                      }`}>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                          <span className={`font-bold flex items-center gap-1.5 text-xs ${
+                            emailTestResult.status === "error"
+                              ? "text-[#AD3D30]"
+                              : emailTestResult.status === "sent"
+                              ? "text-[#10b981]"
+                              : "text-[#d4da55]"
+                          }`}>
+                            {emailTestResult.status === "error" ? (
+                              <AlertCircle className="w-4 h-4 text-[#AD3D30]" />
+                            ) : emailTestResult.status === "sent" ? (
+                              <CheckCircle2 className="w-4 h-4 text-[#10b981]" />
+                            ) : (
+                              <Sparkles className="w-4 h-4 text-[#d4da55]" />
+                            )}
+                            {emailTestResult.status === "error"
+                              ? "DISPATCH ERROR"
+                              : emailTestResult.status === "sent"
+                              ? "EMAIL DELIVERED TO INBOX"
+                              : "DIAGNOSTIC PREVIEW GENERATED"}
+                          </span>
+                          <span className="text-[10px] font-mono uppercase bg-black/40 px-2 py-0.5 rounded border border-white/10 text-[#d4da55]">
+                            PROVIDER: {emailTestResult.provider}
+                          </span>
+                        </div>
+
+                        <p className="text-[11.5px] leading-relaxed">
+                          {emailTestResult.message}
+                        </p>
+
+                        {emailTestResult.id && (
+                          <div className="text-[10px] font-mono text-[#8C8C8C]">
+                            Provider Reference ID: <span className="text-white">{emailTestResult.id}</span>
+                          </div>
+                        )}
+
+                        {emailTestResult.htmlPreview && (
+                          <div className="pt-2 border-t border-white/10">
+                            <button
+                              onClick={() => setShowEmailPreview(!showEmailPreview)}
+                              className="text-[11px] text-[#d4da55] underline cursor-pointer hover:text-white font-mono"
+                            >
+                              {showEmailPreview ? "Hide Formatted Email Preview" : "Inspect Rendered Email Template HTML"}
+                            </button>
+                            {showEmailPreview && (
+                              <div className="mt-2.5 p-3 bg-[#121212] border border-[#3D4028] rounded-xs max-h-72 overflow-y-auto shadow-inner">
+                                <div dangerouslySetInnerHTML={{ __html: emailTestResult.htmlPreview }} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 2: Cloud Scheduler Cron Simulator */}
+                {emailSubTab === "scheduler" && (
+                  <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3 text-xs">
+                    <p className="text-[#8C8C8C] leading-relaxed text-[11px]">
+                      Simulates the exact HTTP call that Google Cloud Scheduler executes automatically every 4 hours. When user inactivity exceeds the threshold, the service triggers loop-closure re-engagement.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs">
+                        <span className="text-[10px] text-[#8C8C8C] block">Target Cron Route</span>
+                        <span className="text-white font-mono text-[11px]">/api/scheduler/check-inactivity</span>
+                      </div>
+                      <div className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs">
+                        <span className="text-[10px] text-[#8C8C8C] block">Trigger Region</span>
+                        <span className="text-[#d4da55] font-mono text-[11px]">asia-southeast1</span>
+                      </div>
+                      <div className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs">
+                        <span className="text-[10px] text-[#8C8C8C] block">Inactivity Gate</span>
+                        <span className="text-white font-mono text-[11px]">&gt;= {inactivityThreshold}h</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex items-center justify-between">
+                      <button
+                        onClick={handleRunSchedulerCheck}
+                        disabled={isCheckingScheduler}
+                        className="px-4 py-2 bg-[#3D4028] hover:bg-[#A3A649] text-[#d4da55] hover:text-black border border-[#A3A649]/60 rounded-xs text-xs font-bold transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingScheduler ? "animate-spin" : ""}`} />
+                        <span>{isCheckingScheduler ? "Evaluating Cron..." : "Trigger Cloud Scheduler Webhook Simulation"}</span>
+                      </button>
+                    </div>
+
+                    {schedulerDiagnostics && (
+                      <div className="mt-2 p-3 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-[#A3A649] border-b border-[#3D4028] pb-1">
+                          <span>Scheduler Response Payload</span>
+                          <span className="text-[#8C8C8C] text-[10px] font-mono">Service: Ana</span>
+                        </div>
+                        <pre className="text-[10px] font-mono text-[#cbd5e1] overflow-x-auto whitespace-pre p-2 bg-[#181818] rounded border border-[#262626]">
+                          {JSON.stringify(schedulerDiagnostics, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 3: Google Cloud Secret Manager & Scheduler Runbook */}
+                {emailSubTab === "runbook" && (
+                  <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3 text-xs">
+                    <p className="text-[#8C8C8C] text-[11px]">
+                      Official Google Cloud CLI runbook for zero-trust Secret Manager and Cloud Scheduler deployment:
+                    </p>
+
+                    {/* Runbook Step 1 */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-white">
+                        <span>1. Create Secret in Google Cloud Secret Manager</span>
+                        <button
+                          onClick={() => handleCopyRunbook("gcloud secrets create RESEND_API_KEY --replication-policy=\"automatic\"\necho -n \"YOUR_API_KEY\" | gcloud secrets versions add RESEND_API_KEY --data-file=-", "step1")}
+                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-mono"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedRunbook === "step1" ? "COPIED" : "COPY"}</span>
+                        </button>
+                      </div>
+                      <pre className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs font-mono text-[10px] text-[#8C8C8C] overflow-x-auto whitespace-pre">
+{`# Create Secret in Secret Manager
+gcloud secrets create RESEND_API_KEY --replication-policy="automatic"
+
+# Inject API key securely without bash history leaks
+echo -n "re_YOUR_API_KEY" | gcloud secrets versions add RESEND_API_KEY --data-file=-`}
+                      </pre>
+                    </div>
+
+                    {/* Runbook Step 2 */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-white">
+                        <span>2. Mount Secret to Cloud Run Service</span>
+                        <button
+                          onClick={() => handleCopyRunbook("gcloud run services update Ana --update-secrets=RESEND_API_KEY=RESEND_API_KEY:latest --region=asia-southeast1", "step2")}
+                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-mono"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedRunbook === "step2" ? "COPIED" : "COPY"}</span>
+                        </button>
+                      </div>
+                      <pre className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs font-mono text-[10px] text-[#8C8C8C] overflow-x-auto whitespace-pre">
+{`# Bind Secret Manager secret to Cloud Run environment variable
+gcloud run services update Ana \\
+  --update-secrets=RESEND_API_KEY=RESEND_API_KEY:latest \\
+  --region=asia-southeast1`}
+                      </pre>
+                    </div>
+
+                    {/* Runbook Step 3 */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px] font-bold text-white">
+                        <span>3. Configure Google Cloud Scheduler Inactivity Cron</span>
+                        <button
+                          onClick={() => handleCopyRunbook("gcloud scheduler jobs create http ana-circadian-inactivity-cron --schedule=\"0 */4 * * *\" --uri=\"https://ana-service-url/api/scheduler/check-inactivity\" --location=asia-southeast1 --oidc-service-account-email=ana-invoker@ai-studio-1964eda9-cc24-452a-bee7-3ab0780e0478.iam.gserviceaccount.com", "step3")}
+                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-mono"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>{copiedRunbook === "step3" ? "COPIED" : "COPY"}</span>
+                        </button>
+                      </div>
+                      <pre className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs font-mono text-[10px] text-[#8C8C8C] overflow-x-auto whitespace-pre">
+{`# Create authenticated HTTP cron job triggering every 4 hours
+gcloud scheduler jobs create http ana-circadian-inactivity-cron \\
+  --schedule="0 */4 * * *" \\
+  --uri="https://YOUR_CLOUD_RUN_URL/api/scheduler/check-inactivity" \\
+  --location=asia-southeast1 \\
+  --oidc-service-account-email=ana-invoker@ai-studio-1964eda9-cc24-452a-bee7-3ab0780e0478.iam.gserviceaccount.com`}
+                      </pre>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Card 4: Google Workspace: Dual-Mode Google Sheets Integration */}
