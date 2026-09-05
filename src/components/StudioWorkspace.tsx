@@ -45,12 +45,9 @@ import {
   extractEmpiricalTelemetryFromGemini,
   decenterNarrativeStreamWithGemini
 } from "../lib/geminiService";
-import { 
-  analyzeNarrativeFlow, 
-  BRAIN_DUMP_STARTERS, 
-  NarrativeFlowMetrics 
-} from "../lib/narrativeFlowAnalyzer";
+import { analyzeNarrativeFlow, BRAIN_DUMP_STARTERS, NarrativeFlowMetrics } from "../lib/narrativeFlowAnalyzer";
 import { EmpiricalTelemetryCard } from "./EmpiricalTelemetryCard";
+import { useTheme } from "../lib/theme";
 
 interface StudioWorkspaceProps {
   entry: JournalEntry;
@@ -93,6 +90,8 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
   layoutMode,
   onSetLayoutMode,
 }) => {
+  const { isLight } = useTheme();
+
   // Local Entry State
   const [currentEntry, setCurrentEntry] = useState<JournalEntry>(entry);
   const [tagInput, setTagInput] = useState("");
@@ -687,16 +686,30 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
 
               {/* Cognitive Unwinding & Narrative Flow Guide (Implicit Pennebaker Engine) */}
               {isFlowGuideOpen && (
-                <div className="p-3 bg-[#20241a] border border-[#3D4028] rounded-xs space-y-2.5 animate-in fade-in text-xs">
+                <div 
+                  id="cognitive-unwinding-flow-panel"
+                  className={`p-3 rounded-xs space-y-2.5 animate-in fade-in text-xs border transition-colors ${
+                    isLight
+                      ? "bg-white border-stone-200 text-stone-900 shadow-2xs"
+                      : "bg-[#20241a] border-[#3D4028] text-white"
+                  }`}
+                  style={isLight ? { backgroundColor: "#ffffff" } : undefined}
+                >
                   <div className="flex items-center justify-between text-[11px]">
-                    <div className="flex items-center gap-1.5 font-bold text-[#A3A649]">
+                    <div className={`flex items-center gap-1.5 font-bold ${
+                      isLight ? "text-[#4D541B]" : "text-[#A3A649]"
+                    }`}>
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>COGNITIVE UNWINDING FLOW</span>
                     </div>
                     <div className="flex items-center gap-2 text-[10px]">
-                      <span className="text-[#8C8C8C] font-mono">{flowMetrics.totalWords} words</span>
-                      <span className="text-[#3D4028]">|</span>
-                      <span className="text-[#cfd39c] font-medium">{flowMetrics.stageLabel}</span>
+                      <span className={`font-mono ${isLight ? "text-stone-500" : "text-[#8C8C8C]"}`}>
+                        {flowMetrics.totalWords} words
+                      </span>
+                      <span className={isLight ? "text-stone-300" : "text-[#3D4028]"}>|</span>
+                      <span className={`font-medium ${isLight ? "text-stone-700" : "text-[#cfd39c]"}`}>
+                        {flowMetrics.stageLabel}
+                      </span>
                     </div>
                   </div>
 
@@ -704,53 +717,95 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                   <div className="grid grid-cols-3 gap-1.5 text-[10px]">
                     <div className={`p-1.5 rounded-xs border transition-all ${
                       flowMetrics.currentStage === "release"
-                        ? "bg-[#2d3319] border-[#A3A649] text-white font-bold"
-                        : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
+                        ? isLight 
+                          ? "bg-[#F4F6EE] border-[#7D8536] text-stone-900 font-bold" 
+                          : "bg-[#2d3319] border-[#A3A649] text-white font-bold"
+                        : isLight 
+                          ? "bg-stone-50 border-stone-200 text-stone-600" 
+                          : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
                     }`}>
                       <div className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#A3A649]" />
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          isLight ? "bg-[#595F22]" : "bg-[#A3A649]"
+                        }`} />
                         <span>1. Stream</span>
                       </div>
-                      <p className="text-[9px] text-[#8C8C8C] mt-0.5 hidden sm:block">Raw emotional venting</p>
+                      <p className={`text-[9px] mt-0.5 hidden sm:block ${
+                        isLight ? "text-stone-500" : "text-[#8C8C8C]"
+                      }`}>
+                        Raw emotional venting
+                      </p>
                     </div>
 
                     <div className={`p-1.5 rounded-xs border transition-all ${
                       flowMetrics.currentStage === "causal"
-                        ? "bg-[#2d3319] border-[#A3A649] text-white font-bold"
-                        : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
+                        ? isLight 
+                          ? "bg-[#F4F6EE] border-[#7D8536] text-stone-900 font-bold" 
+                          : "bg-[#2d3319] border-[#A3A649] text-white font-bold"
+                        : isLight 
+                          ? "bg-stone-50 border-stone-200 text-stone-600" 
+                          : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
                     }`}>
                       <div className="flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full ${flowMetrics.causalCount > 0 ? "bg-[#A3A649]" : "bg-[#8C8C8C]/40"}`} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          flowMetrics.causalCount > 0 
+                            ? isLight ? "bg-[#595F22]" : "bg-[#A3A649]" 
+                            : isLight ? "bg-stone-300" : "bg-[#8C8C8C]/40"
+                        }`} />
                         <span>2. Causal</span>
                       </div>
-                      <p className="text-[9px] text-[#8C8C8C] mt-0.5 hidden sm:block">"because", "realize", "why"</p>
+                      <p className={`text-[9px] mt-0.5 hidden sm:block ${
+                        isLight ? "text-stone-500" : "text-[#8C8C8C]"
+                      }`}>
+                        "because", "realize", "why"
+                      </p>
                     </div>
 
                     <div className={`p-1.5 rounded-xs border transition-all ${
                       flowMetrics.currentStage === "horizon"
-                        ? "bg-[#2d3319] border-[#A3A649] text-white font-bold"
-                        : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
+                        ? isLight 
+                          ? "bg-[#F4F6EE] border-[#7D8536] text-stone-900 font-bold" 
+                          : "bg-[#2d3319] border-[#A3A649] text-white font-bold"
+                        : isLight 
+                          ? "bg-stone-50 border-stone-200 text-stone-600" 
+                          : "bg-[#181a14] border-[#3D4028]/60 text-[#8C8C8C]"
                     }`}>
                       <div className="flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full ${flowMetrics.perspectiveCount > 0 ? "bg-[#10b981]" : "bg-[#8C8C8C]/40"}`} />
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          flowMetrics.perspectiveCount > 0 
+                            ? "bg-[#10b981]" 
+                            : isLight ? "bg-stone-300" : "bg-[#8C8C8C]/40"
+                        }`} />
                         <span>3. Horizon</span>
                       </div>
-                      <p className="text-[9px] text-[#8C8C8C] mt-0.5 hidden sm:block">Wider altitude & distance</p>
+                      <p className={`text-[9px] mt-0.5 hidden sm:block ${
+                        isLight ? "text-stone-500" : "text-[#8C8C8C]"
+                      }`}>
+                        Wider altitude & distance
+                      </p>
                     </div>
                   </div>
 
                   {/* Stage Progress Bar */}
                   <div className="space-y-1">
-                    <div className="w-full bg-[#181a14] h-1.5 rounded-full overflow-hidden border border-[#3D4028]/60">
+                    <div className={`w-full h-1.5 rounded-full overflow-hidden border ${
+                      isLight 
+                        ? "bg-stone-100 border-stone-200" 
+                        : "bg-[#181a14] border-[#3D4028]/60"
+                    }`}>
                       <div 
                         className="bg-gradient-to-r from-[#A3A649] to-[#10b981] h-full transition-all duration-300"
                         style={{ width: `${flowMetrics.stageProgress}%` }}
                       />
                     </div>
-                    <div className="flex items-center justify-between text-[9px] text-[#8C8C8C]">
+                    <div className={`flex items-center justify-between text-[9px] ${
+                      isLight ? "text-stone-500" : "text-[#8C8C8C]"
+                    }`}>
                       <span>{flowMetrics.stageDescription}</span>
                       {flowMetrics.causalWordsFound.length > 0 && (
-                        <span className="text-[#A3A649] font-mono truncate max-w-[150px]">
+                        <span className={`font-mono truncate max-w-[150px] ${
+                          isLight ? "text-[#4D541B]" : "text-[#A3A649]"
+                        }`}>
                           Links: {flowMetrics.causalWordsFound.slice(0, 3).join(", ")}
                         </span>
                       )}
@@ -759,19 +814,33 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
 
                   {/* 3 Low-friction Brain Dump Starters if empty or very short */}
                   {flowMetrics.totalWords < 20 && (
-                    <div className="pt-2 border-t border-[#3D4028]/80 space-y-1.5">
-                      <span className="text-[10px] text-[#8C8C8C] font-semibold">Blank page? Tap an uninhibited starter to begin:</span>
+                    <div className={`pt-2 border-t space-y-1.5 ${
+                      isLight ? "border-stone-200" : "border-[#3D4028]/80"
+                    }`}>
+                      <span className={`text-[10px] font-semibold ${
+                        isLight ? "text-stone-600" : "text-[#8C8C8C]"
+                      }`}>
+                        Blank page? Tap an uninhibited starter to begin:
+                      </span>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
                         {BRAIN_DUMP_STARTERS.map((starter, idx) => (
                           <button
                             key={idx}
                             onClick={() => handleApplyStarter(starter.text)}
-                            className="p-1.5 text-left bg-[#181a14] hover:bg-[#282d19] border border-[#3D4028] hover:border-[#A3A649] rounded-xs transition-all text-[10px] cursor-pointer group"
+                            className={`p-1.5 text-left border rounded-xs transition-all text-[10px] cursor-pointer group ${
+                              isLight 
+                                ? "bg-stone-50 hover:bg-[#F4F6EE] border-stone-200 hover:border-[#7D8536]" 
+                                : "bg-[#181a14] hover:bg-[#282d19] border-[#3D4028] hover:border-[#A3A649]"
+                            }`}
                           >
-                            <div className="text-[#A3A649] font-bold group-hover:underline">
+                            <div className={`font-bold group-hover:underline ${
+                              isLight ? "text-[#4D541B]" : "text-[#A3A649]"
+                            }`}>
                               {starter.label}
                             </div>
-                            <div className="text-[#8C8C8C] text-[9px] line-clamp-1 mt-0.5">
+                            <div className={`text-[9px] line-clamp-1 mt-0.5 ${
+                              isLight ? "text-stone-500" : "text-[#8C8C8C]"
+                            }`}>
                               "{starter.text.trim()}..."
                             </div>
                           </button>

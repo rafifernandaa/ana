@@ -276,10 +276,44 @@ html.light ::-webkit-scrollbar-thumb:hover,
 /* Empirical Telemetry Card in Light Mode */
 html.light #empirical-telemetry-empty-card,
 .light #empirical-telemetry-empty-card,
-[data-theme="light"] #empirical-telemetry-empty-card {
+[data-theme="light"] #empirical-telemetry-empty-card,
+html.light #empirical-telemetry-panel,
+.light #empirical-telemetry-panel,
+[data-theme="light"] #empirical-telemetry-panel,
+html.light #empirical-telemetry-panel-header,
+.light #empirical-telemetry-panel-header,
+[data-theme="light"] #empirical-telemetry-panel-header {
   background-color: #FFFFFF !important;
   border-color: #E2E8F0 !important;
   color: #1F2937 !important;
+}
+
+/* Cognitive Unwinding Flow Guide in Light Mode */
+html.light #cognitive-unwinding-flow-panel,
+.light #cognitive-unwinding-flow-panel,
+[data-theme="light"] #cognitive-unwinding-flow-panel {
+  background-color: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+/* Circadian Loop Closure Notification Banner (Darker div in light mode, white text, visible clock & closure highlight) */
+html.light #circadian-notification-banner,
+.light #circadian-notification-banner,
+[data-theme="light"] #circadian-notification-banner {
+  background-color: #1a1c12 !important;
+  border-color: #3D4028 !important;
+}
+
+html.light #circadian-notification-banner .circadian-notification-text,
+.light #circadian-notification-banner .circadian-notification-text,
+html.light #circadian-notification-banner span.text-white,
+.light #circadian-notification-banner span.text-white {
+  color: #FFFFFF !important;
+}
+
+html.light #circadian-notification-banner .circadian-notification-highlight,
+.light #circadian-notification-banner .circadian-notification-highlight {
+  color: #d4da55 !important;
 }
 .light .markdown-content code {
   background-color: #EAEBE5 !important;

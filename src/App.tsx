@@ -538,11 +538,21 @@ export default function App() {
 
           {/* Circadian Inactivity Nudge Banner (Re-engagement notification) */}
           {isUserInactiveForJournal && showInactivityBanner && (
-            <div className="bg-[#3D4028]/90 border-b border-[#A3A649]/60 px-4 py-2 text-xs text-[#e2e8f0] flex items-center justify-between font-mono shrink-0 animate-in fade-in slide-in-from-top-2">
+            <div 
+              id="circadian-notification-banner"
+              className={`border-b px-4 py-2 text-xs flex items-center justify-between font-mono shrink-0 animate-in fade-in slide-in-from-top-2 transition-colors ${
+                isLight
+                  ? "bg-[#181a12] border-[#3D4028]"
+                  : "bg-[#202416] border-[#A3A649]/60"
+              }`}
+            >
               <div className="flex items-center gap-2 max-w-4xl">
-                <Clock className="w-4 h-4 text-[#A3A649] shrink-0 animate-pulse" />
+                <Clock className="w-4 h-4 text-[#d4da55] shrink-0 animate-pulse circadian-notification-highlight" />
                 <span>
-                  <strong className="text-[#A3A649]">Circadian Loop Closure:</strong> It has been {hoursSinceLastJournal.toFixed(0)}h since your last reflection. Notice any unresolved mental tension? Take 90 seconds to deposit open loops.
+                  <strong className="text-[#d4da55] font-bold circadian-notification-highlight">Circadian Loop Closure:</strong>{" "}
+                  <span className="circadian-notification-text text-white font-normal">
+                    It has been {hoursSinceLastJournal.toFixed(0)}h since your last reflection. Notice any unresolved mental tension? Take 90 seconds to deposit open loops.
+                  </span>
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -552,13 +562,13 @@ export default function App() {
                     setActiveNavTab("studio");
                     setShowInactivityBanner(false);
                   }}
-                  className="px-2.5 py-1 bg-[#A3A649] hover:bg-[#A3A649]/80 text-black font-bold rounded-xs text-[11px] transition-all cursor-pointer"
+                  className="px-2.5 py-1 bg-[#A3A649] hover:bg-[#A3A649]/80 text-black font-bold rounded-xs text-[11px] transition-all cursor-pointer shadow-2xs"
                 >
                   Deposit Open Loops
                 </button>
                 <button
                   onClick={() => setShowInactivityBanner(false)}
-                  className="text-[#8C8C8C] hover:text-white font-bold px-1.5 cursor-pointer"
+                  className="text-stone-400 hover:text-white font-bold px-1.5 cursor-pointer"
                   title="Dismiss reminder"
                 >
                   ✕
