@@ -1112,7 +1112,11 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<Ema
 }
 
 // Universal Email-Safe Responsive HTML Template (Standard Table Layout for Gmail, Apple Mail, Outlook)
-function createCircadianEmailHtml(userName: string, hoursInactive: number, phase: string, baseUrl: string, recipientEmail?: string): string {
+function createCircadianEmailHtml(userName: string, hoursInactive: number, phase: string, baseUrl: string = "https://ana-journ.ai.studio/", recipientEmail?: string): string {
+  const targetUrl = (baseUrl || process.env.APP_BASE_URL || process.env.APP_URL || "https://ana-journ.ai.studio/").trim();
+  const cleanBaseUrl = targetUrl.endsWith("/") ? targetUrl.slice(0, -1) : targetUrl;
+  const studioLink = `${cleanBaseUrl}/`;
+
   return `
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #121212; padding: 24px 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
       <tr>
@@ -1170,7 +1174,7 @@ function createCircadianEmailHtml(userName: string, hoursInactive: number, phase
                       <table cellpadding="0" cellspacing="0" border="0">
                         <tr>
                           <td align="center" style="background-color: #A3A649; border-radius: 4px;">
-                            <a href="${baseUrl}/?action=circadian&source=email_nudge" target="_blank" style="display: inline-block; padding: 13px 28px; font-family: monospace, -apple-system, sans-serif; font-size: 13px; font-weight: 700; color: #121212; text-decoration: none; letter-spacing: 0.05em; border-radius: 4px;">
+                            <a href="${studioLink}" target="_blank" style="display: inline-block; padding: 13px 28px; font-family: monospace, -apple-system, sans-serif; font-size: 13px; font-weight: 700; color: #121212; text-decoration: none; letter-spacing: 0.05em; border-radius: 4px;">
                               OPEN ANA STUDIO &amp; DEPOSIT OPEN LOOPS &rarr;
                             </a>
                           </td>
@@ -1263,7 +1267,7 @@ app.all(["/api/scheduler/check-inactivity", "/api/notifications/circadian-cron"]
 
     // If user is inactive and an email is available, trigger email dispatch
     if (isInactive && targetEmail) {
-      const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+      const baseUrl = (process.env.APP_BASE_URL || process.env.APP_URL || "https://ana-journ.ai.studio/").trim();
       const emailHtml = createCircadianEmailHtml(
         userName || targetEmail.split("@")[0] || "Reflective User",
         hoursElapsed,
@@ -1310,7 +1314,7 @@ app.all(["/api/scheduler/check-inactivity", "/api/notifications/circadian-cron"]
         nudgePayload: {
           title: `Ana Circadian: ${phase}`,
           body: nudgeMessage,
-          clickAction: "/?action=circadian"
+          clickAction: "https://ana-journ.ai.studio/"
         }
       },
       emailDispatch: emailResult,
@@ -1344,12 +1348,13 @@ app.post("/api/notifications/send-email", async (req: Request, res: Response) =>
       return res.status(400).json({ error: "A valid recipientEmail is required." });
     }
 
-    const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const baseUrl = (process.env.APP_BASE_URL || process.env.APP_URL || "https://ana-journ.ai.studio/").trim();
+    const studioLink = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`;
     const html = createCircadianEmailHtml(
       recipientName || recipientEmail.split("@")[0],
       Number(hoursInactive) || 22,
       String(circadianPhase),
-      baseUrl,
+      studioLink,
       recipientEmail
     );
 
@@ -1358,7 +1363,7 @@ app.post("/api/notifications/send-email", async (req: Request, res: Response) =>
       name: recipientName,
       subject: `Ana // Circadian Inactivity Alert: ${circadianPhase}`,
       html,
-      text: `Notice any unresolved tension, ${recipientName || "there"}? It has been ${hoursInactive} hours since your last reflection. Take 90 seconds to deposit open loops in Ana Studio: ${baseUrl}/?action=circadian`,
+      text: `Notice any unresolved tension, ${recipientName || "there"}? It has been ${hoursInactive} hours since your last reflection. Take 90 seconds to deposit open loops in Ana Studio: ${studioLink}`,
       apiKey,
       provider,
       fromEmail,

@@ -218,6 +218,23 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Handle URL deep-linking (e.g. from Circadian Inactivity Emails pointing to https://ana-journ.ai.studio/?action=circadian)
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      const action = params.get("action");
+      const tab = params.get("tab");
+      if (action === "circadian" || action === "studio" || tab === "studio") {
+        setActiveNavTab("studio");
+      } else if (tab === "features" || tab === "archive" || tab === "settings" || tab === "dashboard") {
+        setActiveNavTab(tab);
+      }
+    } catch {
+      // URL query parameter parsing fallback
+    }
+  }, []);
+
   // Subscribe to user-isolated Firestore data when authenticated
   useEffect(() => {
     if (!user) {

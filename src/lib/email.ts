@@ -107,8 +107,12 @@ export const getEmailTemplateHtml = (
   userName: string,
   hoursInactive: number,
   phase: string,
-  appUrl: string = typeof window !== "undefined" ? window.location.origin : "https://ana-journal.app"
+  appUrl: string = "https://ana-journ.ai.studio/"
 ): string => {
+  const targetUrl = (appUrl || "https://ana-journ.ai.studio/").trim();
+  const cleanAppUrl = targetUrl.endsWith("/") ? targetUrl.slice(0, -1) : targetUrl;
+  const studioLink = `${cleanAppUrl}/`;
+
   return `
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color: #121212; padding: 24px 12px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
       <tr>
@@ -166,7 +170,7 @@ export const getEmailTemplateHtml = (
                       <table cellpadding="0" cellspacing="0" border="0">
                         <tr>
                           <td align="center" style="background-color: #A3A649; border-radius: 4px;">
-                            <a href="${appUrl}/?action=circadian&source=email_nudge" target="_blank" style="display: inline-block; padding: 13px 28px; font-family: monospace, -apple-system, sans-serif; font-size: 13px; font-weight: 700; color: #121212; text-decoration: none; letter-spacing: 0.05em; border-radius: 4px;">
+                            <a href="${studioLink}" target="_blank" style="display: inline-block; padding: 13px 28px; font-family: monospace, -apple-system, sans-serif; font-size: 13px; font-weight: 700; color: #121212; text-decoration: none; letter-spacing: 0.05em; border-radius: 4px;">
                               OPEN ANA STUDIO &amp; DEPOSIT OPEN LOOPS &rarr;
                             </a>
                           </td>
