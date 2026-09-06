@@ -42,24 +42,24 @@ export const WhatsInItSection: React.FC<WhatsInItSectionProps> = ({ onLaunchTool
       icon: Wind,
       shortDesc: "Full-screen immersive WebGL particle sanctuary with box breathing and binaural audio.",
       longDesc:
-        "When cognitive writing is not enough, step directly into the Somatic Reset Room. Rhythmic visual pacing balls synchronize your breath (inhale 4s, hold 4s, exhale 4s, hold 4s) while Web Audio synthesizes resonant binaural frequencies to induce vagal tone.",
+        "When cognitive writing is not enough, step directly into the Somatic Reset Room. Rhythmic visual pacing balls synchronize your breath with calming cycles while Web Audio synthesizes resonant alpha and theta frequencies to induce physiological calm.",
       highlights: [
-        "Interactive SVG body mapping to localize physical gripping",
-        "Synthetic binaural beats (Alpha 10Hz, Theta 6Hz, Delta 2Hz)",
-        "Pre and post tension delta measurement to record somatic discharge",
+        "Interactive SVG body mapping to localize physical tension",
+        "Synthetic binaural audio (Alpha, Theta, and Delta waves)",
+        "Pre and post tension delta measurement to record somatic release",
       ],
     },
     {
-      id: "psychiatric-decentering",
-      title: "Psychiatric Decentering Station",
+      id: "mindful-decentering",
+      title: "Mindful Decentering Station",
       tag: "Metacognitive Defusion",
       icon: Eye,
-      shortDesc: "ACT & IFS unblending station to step out of ruminative identity traps.",
+      shortDesc: "ACT & IFS unblending station to step out of ruminative thought loops.",
       longDesc:
-        "Suffering occurs when you fuse with your thoughts. Using Acceptance and Commitment Therapy (ACT) defusion algorithms, Ana dismantles catastrophic self-talk into neutral observer-self insights, helping you see thoughts as transient neural weather.",
+        "Mental tension increases when you fuse with your thoughts. Using Acceptance and Commitment Therapy (ACT) defusion principles, Ana unbundles intense self-talk into neutral observer-self insights, helping you see thoughts as transient mental events.",
       highlights: [
-        "Cognitive fusion score extraction & unblending prompts",
-        "Separation of raw sensory facts from projected narratives",
+        "Cognitive fusion score assessment & unblending prompts",
+        "Separation of raw sensory facts from projected internal narratives",
         "Permanent defusion anchor generation for future reassurance",
       ],
     },
@@ -122,7 +122,7 @@ export const WhatsInItSection: React.FC<WhatsInItSectionProps> = ({ onLaunchTool
             </p>
             <div className="flex items-center gap-2 text-xs font-mono text-[#3D4028] font-semibold">
               <Sparkles className="w-3.5 h-3.5 text-[#A3A649]" />
-              <span>5 Integrated Neuroscience Modules • Available in Demo & Authenticated Mode</span>
+              <span>Integrated Neuroscience Modules • Available in Demo & Authenticated Mode</span>
             </div>
           </div>
         </div>

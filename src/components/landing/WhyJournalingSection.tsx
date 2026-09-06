@@ -142,8 +142,8 @@ export const WhyJournalingSection: React.FC<{ onExploreTools: () => void }> = ({
                   into an organized coherent narrative.
                 </p>
                 <div className="p-4 rounded-xl bg-stone-50 border border-stone-200 text-sm text-stone-700 leading-relaxed">
-                  <span className="font-mono font-bold text-[#3D4028]">Empirical Biomarkers: </span>
-                  Four consecutive sessions of expressive writing have been clinically shown to reduce physician visits, lower resting blood pressure, and boost antibody responses to pathogens.
+                  <span className="font-mono font-bold text-[#3D4028]">Cognitive Externalization: </span>
+                  Expressive writing externalizes internal mental friction, enabling the mind to recognize recurring thoughts and cultivate grounded clarity.
                 </div>
               </div>
             )}
@@ -158,7 +158,7 @@ export const WhyJournalingSection: React.FC<{ onExploreTools: () => void }> = ({
                 </h3>
                 <p className="font-serif text-base sm:text-lg text-[#262626]/80 leading-relaxed mb-6">
                   Your nervous system is constantly assessing environmental cues for danger (neuroception). 
-                  While trauma creates triggers, micro-moments of peaceful safety are known as <em className="text-[#3D4028] font-semibold">"Glimmers"</em>. 
+                  While sustained stress creates chronic hyperarousal, micro-moments of peaceful safety are known as <em className="text-[#3D4028] font-semibold">"Glimmers"</em>. 
                   Ana's AI actively surfaces and vaults these glimmers from your journals, systematically conditioning your autonomic nervous system toward rest and social connection.
                 </p>
                 <div className="p-4 rounded-xl bg-[#FAF9F6] border border-[#3D4028]/20 flex items-center justify-between">
@@ -177,7 +177,7 @@ export const WhyJournalingSection: React.FC<{ onExploreTools: () => void }> = ({
 
             <div className="mt-8 pt-6 border-t border-stone-100 flex items-center justify-between">
               <span className="text-xs font-mono text-[#8C8C8C]">
-                Step 01 / 03 in the Ana Framework
+                The Ana Reflective Framework
               </span>
               <button
                 onClick={onExploreTools}
@@ -189,42 +189,49 @@ export const WhyJournalingSection: React.FC<{ onExploreTools: () => void }> = ({
             </div>
           </div>
 
-          {/* Side Botanical & Science Stat Panel */}
+          {/* Side Botanical & Science Stat Panel (Zero number claims, purely qualitative) */}
           <div className="lg:col-span-4 flex flex-col gap-6">
             <div className="bg-white rounded-2xl p-6 sm:p-8 border border-[#3D4028]/15 shadow-sm">
-              <div className="text-3xl font-display font-bold text-[#3D4028] mb-1">
-                -42%
+              <div className="flex items-center gap-2 mb-2 text-[#3D4028]">
+                <Activity className="w-5 h-5" />
+                <span className="font-mono text-xs uppercase tracking-wider font-bold">
+                  Affective Modulation
+                </span>
               </div>
-              <div className="font-mono text-xs uppercase tracking-wider text-[#262626] font-semibold mb-2">
-                Amygdala Hyperactivity
-              </div>
-              <p className="font-serif text-sm text-[#262626]/70 leading-relaxed">
-                Observed in functional brain scans within 8 minutes of structured affect labelling and emotional transcription.
+              <h4 className="font-sans font-bold text-lg text-[#262626] mb-2">
+                Amygdala Down-Regulation
+              </h4>
+              <p className="font-serif text-sm text-[#262626]/75 leading-relaxed">
+                Functional imaging demonstrates that putting feelings into precise words engages reflective prefrontal circuitry to quiet emotional reactivity.
               </p>
             </div>
 
             <div className="bg-white rounded-2xl p-6 sm:p-8 border border-[#3D4028]/15 shadow-sm">
-              <div className="text-3xl font-display font-bold text-[#A3A649] mb-1">
-                3.2x
+              <div className="flex items-center gap-2 mb-2 text-[#A3A649]">
+                <Brain className="w-5 h-5" />
+                <span className="font-mono text-xs uppercase tracking-wider font-bold">
+                  Cognitive Unburdening
+                </span>
               </div>
-              <div className="font-mono text-xs uppercase tracking-wider text-[#262626] font-semibold mb-2">
-                Synaptic Working Memory Recovery
-              </div>
-              <p className="font-serif text-sm text-[#262626]/70 leading-relaxed">
-                Reclaimed cognitive bandwidth when looping ruminative thoughts are externalized into permanent written records.
+              <h4 className="font-sans font-bold text-lg text-[#262626] mb-2">
+                Restored Mental Clarity
+              </h4>
+              <p className="font-serif text-sm text-[#262626]/75 leading-relaxed">
+                Externalizing persistent thoughts onto the page releases cognitive load, transforming repetitive mental loops into grounded perspective.
               </p>
             </div>
 
-            <div className="bg-[#3D4028] text-white rounded-2xl p-6 sm:p-8 shadow-md flex flex-col justify-between">
+            {/* Reflection Principle Card with Dark High-Contrast Typography (Fixing Image 1) */}
+            <div className="bg-[#E8ECE1] text-[#1E2015] border border-[#3D4028]/25 rounded-2xl p-6 sm:p-8 shadow-sm flex flex-col justify-between">
               <div>
-                <div className="font-mono text-[10px] tracking-widest uppercase text-[#A3A649] mb-2 font-bold">
+                <div className="font-mono text-[10px] tracking-widest uppercase text-[#3D4028] mb-2.5 font-bold">
                   THE REFLECTION PRINCIPLE
                 </div>
-                <div className="font-serif text-sm sm:text-base leading-relaxed text-white/90">
-                  "Examining where you have been is how you create the clarity for where you are going."
+                <div className="font-serif text-base sm:text-lg leading-relaxed text-[#1E2015] font-semibold">
+                  "Examining where you have been is how you discover the clarity for where you are going."
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-white/10 text-[11px] font-mono text-white/60">
+              <div className="mt-4 pt-4 border-t border-[#3D4028]/20 text-[11px] font-mono text-[#3D4028] font-bold tracking-wider">
                 Observe • Process • Integrate
               </div>
             </div>

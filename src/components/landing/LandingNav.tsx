@@ -49,11 +49,11 @@ export const LandingNav: React.FC<LandingNavProps> = ({
           : "bg-transparent py-5"
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 sm:px-10 flex items-center justify-between">
-        {/* Brand: Ana Monogram & Wordmark */}
+      <div className="w-full px-6 sm:px-10 lg:px-12 flex items-center justify-between relative">
+        {/* Brand: Ana Monogram & Wordmark (Very Left Edge) */}
         <div
           onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-          className="flex items-center gap-3 cursor-pointer group select-none"
+          className="flex items-center gap-3 cursor-pointer group select-none z-10"
         >
           <div className="w-8 h-8 rounded-full flex items-center justify-center text-[#262626] group-hover:text-[#3D4028] transition-colors">
             <AnaLogo size={32} color="#262626" />
@@ -65,8 +65,8 @@ export const LandingNav: React.FC<LandingNavProps> = ({
           </div>
         </div>
 
-        {/* 3 Nav Tabs: Why Journaling, Architecture, What's In It */}
-        <div className="hidden md:flex items-center gap-8 text-sm font-sans tracking-wide text-[#262626]/80 font-medium">
+        {/* 3 Nav Tabs: Why Journaling, Architecture, What's In It (Dead Center) */}
+        <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-8 text-sm font-sans tracking-wide text-[#262626]/80 font-medium z-10">
           <a
             href="#why-journaling"
             onClick={(e) => handleNavClick(e, "why-journaling")}
@@ -105,8 +105,8 @@ export const LandingNav: React.FC<LandingNavProps> = ({
           </a>
         </div>
 
-        {/* Action Buttons: Sign In / Start App */}
-        <div className="flex items-center gap-3">
+        {/* Action Buttons: Sign In / Start App (Very Right Edge) */}
+        <div className="flex items-center gap-3 z-10">
           {user ? (
             <button
               onClick={onEnterApp}
