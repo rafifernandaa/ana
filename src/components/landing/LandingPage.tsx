@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { User } from "firebase/auth";
+import { AlertCircle, X } from "lucide-react";
 import { LandingNav } from "./LandingNav";
 import { LandingHeroSection } from "./LandingHeroSection";
 import { WhyJournalingSection } from "./WhyJournalingSection";
@@ -10,6 +11,8 @@ import { LandingFooter } from "./LandingFooter";
 interface LandingPageProps {
   user: User | null;
   isLoading?: boolean;
+  authError?: string | null;
+  onDismissAuthError?: () => void;
   onSignIn: () => void;
   onEnterApp: () => void;
 }
@@ -17,6 +20,8 @@ interface LandingPageProps {
 export const LandingPage: React.FC<LandingPageProps> = ({
   user,
   isLoading = false,
+  authError = null,
+  onDismissAuthError,
   onSignIn,
   onEnterApp,
 }) => {
@@ -72,6 +77,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         activeSection={activeSection}
         onNavigateSection={navigateToSection}
       />
+
+      {/* Floating Auth Notification Notice */}
+      {authError && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-lg animate-in fade-in slide-in-from-top-4 duration-200">
+          <div className="bg-[#FAF9F6] border border-[#AD3D30] rounded-xl shadow-xl p-3.5 flex items-start justify-between gap-3 font-sans text-xs">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-[#AD3D30] shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-[#AD3D30]">Sign-In Notice</p>
+                <p className="text-[#262626]/85 leading-relaxed">{authError}</p>
+              </div>
+            </div>
+            {onDismissAuthError && (
+              <button
+                type="button"
+                onClick={onDismissAuthError}
+                className="text-[#8C8C8C] hover:text-[#262626] p-1 rounded-md hover:bg-black/5 transition-colors cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Page 1: Hero with 3-Layer Placement */}
       <div id="hero">

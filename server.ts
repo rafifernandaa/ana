@@ -17,10 +17,10 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 // 2. Defensive Security Headers Middleware (OWASP A05: Security Misconfiguration)
 app.use((_req: Request, res: Response, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  // Omit restrictive X-Frame-Options in AI Studio / Cloud Run preview to support live iframe preview and OAuth popups
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   res.setHeader("X-XSS-Protection", "0");
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "production" && !process.env.AI_STUDIO_CONTAINER) {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   next();

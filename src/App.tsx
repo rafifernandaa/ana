@@ -350,10 +350,18 @@ export default function App() {
     try {
       setIsAuthLoading(true);
       setAuthError(null);
-      await signInWithGoogle();
+      const signedInUser = await signInWithGoogle();
+      if (signedInUser) {
+        setUser(signedInUser);
+        setShowLanding(false);
+      }
     } catch (err: any) {
-      console.error("Authentication error:", err);
-      setAuthError(err.message || "Failed to sign in with Google.");
+      if (err?.code === "auth/popup-closed-by-user" || err?.message?.includes("closed before completion")) {
+        console.info("Sign-in popup closed by user.");
+        return;
+      }
+      console.warn("Authentication notice:", err);
+      setAuthError(err?.message || "Failed to complete Google Sign-In.");
     } finally {
       setIsAuthLoading(false);
     }
@@ -518,6 +526,8 @@ export default function App() {
       <LandingPage
         user={user}
         isLoading={isAuthLoading}
+        authError={authError}
+        onDismissAuthError={() => setAuthError(null)}
         onSignIn={handleSignIn}
         onEnterApp={() => setShowLanding(false)}
       />

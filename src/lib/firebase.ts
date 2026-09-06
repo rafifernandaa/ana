@@ -46,8 +46,9 @@ export const db: Firestore = firebaseConfig.firestoreDatabaseId
 
 export const createGoogleProvider = () => {
   const provider = new GoogleAuthProvider();
-  provider.addScope("profile");
-  provider.addScope("email");
+  provider.setCustomParameters({
+    prompt: "select_account"
+  });
   return provider;
 };
 
@@ -77,7 +78,7 @@ export function stripUndefined<T>(obj: T): T {
 /**
  * Sign in using Google Federated Identity
  */
-export async function signInWithGoogle(): Promise<User> {
+export async function signInWithGoogle(): Promise<User | null> {
   try {
     // 1. Ensure Firebase Auth initialization is fully settled
     if (typeof (auth as any).authStateReady === "function") {
@@ -87,16 +88,32 @@ export async function signInWithGoogle(): Promise<User> {
     const result = await signInWithPopup(auth, provider);
     return result.user;
   } catch (popupError: any) {
+    // 1. User intentionally closed popup or cancelled: non-fatal, return null cleanly
+    if (
+      popupError?.code === "auth/popup-closed-by-user" || 
+      popupError?.code === "auth/cancelled-popup-request" ||
+      popupError?.message?.includes("closed before completion")
+    ) {
+      console.info("Firebase Auth: Sign-in popup closed by user or cancelled.");
+      return null;
+    }
+
+    // 2. Popup blocked by browser
+    if (popupError?.code === "auth/popup-blocked") {
+      throw new Error("Sign-in popup was blocked by your browser. Please allow popups or open the app in a new tab.");
+    }
+
+    // 3. Domain not authorized in Firebase Console
+    if (popupError?.code === "auth/unauthorized-domain") {
+      throw new Error("This domain is not in the Firebase Authorized Domains list. Please add this domain in Firebase Console -> Authentication -> Settings.");
+    }
+
+    // 4. Invalid credentials or userinfo fetch error
+    if (popupError?.code === "auth/invalid-credential" || popupError?.message?.includes("userinfo")) {
+      throw new Error("Google authentication failed. If running inside an embedded preview, please open the application in a new browser tab.");
+    }
+
     console.warn("Google sign-in encountered an issue:", popupError);
-    if (popupError.code === "auth/popup-blocked" || popupError.code === "auth/cancelled-popup-request") {
-      throw new Error("Sign-in popup was blocked or interrupted by the browser. Please allow popups for this site and try again.");
-    }
-    if (popupError.code === "auth/popup-closed-by-user") {
-      throw new Error("Sign-in window was closed before completion. Please try again.");
-    }
-    if (popupError.code === "auth/unauthorized-domain") {
-      throw new Error("Domain not authorized for Google Sign-In in Firebase Console.");
-    }
     throw popupError;
   }
 }
