@@ -9,12 +9,14 @@ import { LandingFooter } from "./LandingFooter";
 
 interface LandingPageProps {
   user: User | null;
+  isLoading?: boolean;
   onSignIn: () => void;
   onEnterApp: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   user,
+  isLoading = false,
   onSignIn,
   onEnterApp,
 }) => {
@@ -64,6 +66,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Fixed Navigation Bar */}
       <LandingNav
         user={user}
+        isLoading={isLoading}
         onSignIn={onSignIn}
         onEnterApp={onEnterApp}
         activeSection={activeSection}
@@ -73,6 +76,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Page 1: Hero with 3-Layer Placement */}
       <div id="hero">
         <LandingHeroSection
+          user={user}
+          isLoading={isLoading}
           onStartJournal={onEnterApp}
           onSignIn={onSignIn}
           onScrollToNext={scrollToNext}
@@ -96,6 +101,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Page 5: Reflection & Footer */}
       <LandingFooter
+        user={user}
+        isLoading={isLoading}
         onStartJournal={onEnterApp}
         onSignIn={onSignIn}
       />

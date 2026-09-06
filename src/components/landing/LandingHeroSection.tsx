@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { ArrowRight, ChevronDown, Sparkles } from "lucide-react";
+import { User } from "firebase/auth";
 
 interface LandingHeroSectionProps {
   onStartJournal: () => void;
   onSignIn: () => void;
   onScrollToNext: () => void;
+  user?: User | null;
+  isLoading?: boolean;
 }
 
 export const LandingHeroSection: React.FC<LandingHeroSectionProps> = ({
   onStartJournal,
   onSignIn,
   onScrollToNext,
+  user,
+  isLoading = false,
 }) => {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
@@ -55,19 +60,31 @@ export const LandingHeroSection: React.FC<LandingHeroSectionProps> = ({
           {/* Action CTAs */}
           <div className="flex flex-wrap items-center gap-4 mb-8">
             <button
+              type="button"
               onClick={onStartJournal}
               className="inline-flex items-center gap-3 px-8 py-3.5 rounded-full bg-[#3D4028] hover:bg-[#2d301e] text-white font-sans text-sm font-semibold tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 cursor-pointer group"
             >
-              <span>Start Your Journal</span>
+              <span>{user ? "Enter Studio" : "Start Your Journal"}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <button
-              onClick={onSignIn}
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full border border-[#262626]/20 hover:border-[#262626] text-[#262626] text-sm font-mono tracking-wider font-medium hover:bg-black/5 transition-all cursor-pointer"
-            >
-              <span>Sign In with Google</span>
-            </button>
+            {!user && (
+              <button
+                type="button"
+                onClick={onSignIn}
+                disabled={isLoading}
+                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-full border border-[#262626]/20 hover:border-[#262626] text-[#262626] text-sm font-mono tracking-wider font-medium hover:bg-black/5 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-[#3D4028] border-t-transparent rounded-full animate-spin" />
+                    <span>Connecting...</span>
+                  </>
+                ) : (
+                  <span>Sign In with Google</span>
+                )}
+              </button>
+            )}
           </div>
 
           {/* Micro Neuroscience Highlight */}

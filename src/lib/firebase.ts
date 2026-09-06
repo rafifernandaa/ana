@@ -44,10 +44,14 @@ export const db: Firestore = firebaseConfig.firestoreDatabaseId
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
 
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({
-  prompt: "select_account"
-});
+export const createGoogleProvider = () => {
+  const provider = new GoogleAuthProvider();
+  provider.addScope("profile");
+  provider.addScope("email");
+  return provider;
+};
+
+export const googleProvider = createGoogleProvider();
 
 /**
  * Strips all undefined properties from an object recursively
@@ -75,13 +79,23 @@ export function stripUndefined<T>(obj: T): T {
  */
 export async function signInWithGoogle(): Promise<User> {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
+    // 1. Ensure Firebase Auth initialization is fully settled
+    if (typeof (auth as any).authStateReady === "function") {
+      await auth.authStateReady();
+    }
+    const provider = createGoogleProvider();
+    const result = await signInWithPopup(auth, provider);
     return result.user;
   } catch (popupError: any) {
-    console.warn("Popup sign-in encountered an issue, attempting redirect or logging info:", popupError);
-    // In strict iframe sandbox, popup might be blocked or require user permission
+    console.warn("Google sign-in encountered an issue:", popupError);
     if (popupError.code === "auth/popup-blocked" || popupError.code === "auth/cancelled-popup-request") {
-      throw new Error("Sign-in popup was blocked by browser. Please allow popups or open the app in a new tab.");
+      throw new Error("Sign-in popup was blocked or interrupted by the browser. Please allow popups for this site and try again.");
+    }
+    if (popupError.code === "auth/popup-closed-by-user") {
+      throw new Error("Sign-in window was closed before completion. Please try again.");
+    }
+    if (popupError.code === "auth/unauthorized-domain") {
+      throw new Error("Domain not authorized for Google Sign-In in Firebase Console.");
     }
     throw popupError;
   }

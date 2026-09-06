@@ -1,15 +1,20 @@
 import React from "react";
 import { AnaLogo } from "../common/AnaLogo";
 import { ArrowRight, LogIn, Github, Sparkles } from "lucide-react";
+import { User } from "firebase/auth";
 
 interface LandingFooterProps {
   onStartJournal: () => void;
   onSignIn: () => void;
+  user?: User | null;
+  isLoading?: boolean;
 }
 
 export const LandingFooter: React.FC<LandingFooterProps> = ({
   onStartJournal,
   onSignIn,
+  user,
+  isLoading = false,
 }) => {
   return (
     <footer className="relative bg-[#FAF9F6] text-[#262626] pt-20 pb-12 border-t border-[#3D4028]/15 overflow-hidden select-none">
@@ -34,20 +39,29 @@ export const LandingFooter: React.FC<LandingFooterProps> = ({
 
           <div className="flex flex-wrap items-center justify-center gap-4">
             <button
+              type="button"
               onClick={onStartJournal}
               className="inline-flex items-center gap-3 px-8 py-4 rounded-full bg-[#3D4028] hover:bg-[#2d301e] text-white font-sans text-sm font-semibold tracking-wide transition-all shadow-md hover:shadow-lg hover:-translate-y-0.5 cursor-pointer group"
             >
-              <span>Start Your Journal</span>
+              <span>{user ? "Enter Studio" : "Start Your Journal"}</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </button>
 
-            <button
-              onClick={onSignIn}
-              className="inline-flex items-center gap-2 px-7 py-4 rounded-full border-2 border-[#3D4028] bg-white hover:bg-[#3D4028] text-[#262626] hover:text-white text-sm font-mono tracking-wider font-bold transition-all shadow-xs cursor-pointer group"
-            >
-              <LogIn className="w-4 h-4 text-[#3D4028] group-hover:text-white transition-colors" />
-              <span>Sign In with Google</span>
-            </button>
+            {!user && (
+              <button
+                type="button"
+                onClick={onSignIn}
+                disabled={isLoading}
+                className="inline-flex items-center gap-2 px-7 py-4 rounded-full border-2 border-[#3D4028] bg-white hover:bg-[#3D4028] text-[#262626] hover:text-white text-sm font-mono tracking-wider font-bold transition-all shadow-xs cursor-pointer group disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <span className="w-4 h-4 border-2 border-[#3D4028] border-t-transparent rounded-full animate-spin group-hover:border-white" />
+                ) : (
+                  <LogIn className="w-4 h-4 text-[#3D4028] group-hover:text-white transition-colors" />
+                )}
+                <span>{isLoading ? "Connecting..." : "Sign In with Google"}</span>
+              </button>
+            )}
           </div>
         </div>
       </div>

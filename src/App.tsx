@@ -215,6 +215,7 @@ export default function App() {
       setIsAuthLoading(false);
       if (currentUser) {
         setAuthError(null);
+        setShowLanding(false);
       }
     });
     return () => unsubscribe();
@@ -516,14 +517,8 @@ export default function App() {
     return (
       <LandingPage
         user={user}
-        onSignIn={async () => {
-          try {
-            await handleSignIn();
-            setShowLanding(false);
-          } catch (err) {
-            console.error("Sign in error:", err);
-          }
-        }}
+        isLoading={isAuthLoading}
+        onSignIn={handleSignIn}
         onEnterApp={() => setShowLanding(false)}
       />
     );
