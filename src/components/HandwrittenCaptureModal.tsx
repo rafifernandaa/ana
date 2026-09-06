@@ -20,7 +20,7 @@ import {
   Copy,
   Clock
 } from "lucide-react";
-import { uploadHandwrittenImageToStorage, UploadedHandwrittenImage } from "../lib/firebase";
+import { uploadHandwrittenImageToStorage, UploadedHandwrittenImage, auth } from "../lib/firebase";
 import { useTheme } from "../lib/theme";
 
 interface HandwrittenCaptureModalProps {
@@ -188,17 +188,30 @@ export const HandwrittenCaptureModal: React.FC<HandwrittenCaptureModalProps> = (
     setUploadStatus("Uploading handwritten notebook pages to Google Cloud Storage...");
 
     try {
+      // Determine authentication status and token
+      const currentUser = auth.currentUser;
+      let idToken: string | null = null;
+      if (currentUser) {
+        try {
+          idToken = await currentUser.getIdToken();
+        } catch (tokenErr) {
+          console.warn("Could not retrieve ID token:", tokenErr);
+        }
+      }
+
+      const effectiveClientUserId = currentUser ? currentUser.uid : (userId || "guest");
+
       // Step 1: Upload each page to Google Cloud Storage / Firebase Storage bucket
       const uploaded: UploadedHandwrittenImage[] = [];
       for (let i = 0; i < capturedImages.length; i++) {
         setUploadStatus(`Archiving page ${i + 1}/${capturedImages.length} to Cloud Storage (ai-studio-bucket-118399207989-asia-southeast1)...`);
         try {
-          const res = await uploadHandwrittenImageToStorage(userId, capturedImages[i], i);
+          const res = await uploadHandwrittenImageToStorage(effectiveClientUserId, capturedImages[i], i);
           uploaded.push(res);
         } catch (uploadErr: any) {
           console.warn("Storage upload notice (falling back to canonical storage URI):", uploadErr);
           const fallbackBucket = "ai-studio-bucket-118399207989-asia-southeast1";
-          const fallbackPath = `handwritten/${userId || "anonymous"}/hw_${Date.now()}_p${i + 1}.jpg`;
+          const fallbackPath = `handwritten/${effectiveClientUserId}/hw_${Date.now()}_p${i + 1}.jpg`;
           uploaded.push({
             storageUri: `gs://${fallbackBucket}/${fallbackPath}`,
             downloadUrl: capturedImages[i],
@@ -211,13 +224,21 @@ export const HandwrittenCaptureModal: React.FC<HandwrittenCaptureModalProps> = (
 
       // Step 2: Call Gemini Multimodal OCR and Google Cloud DLP pipeline
       setUploadStatus("Transcribing with Gemini OCR & evaluating Cloud DLP infoTypes...");
+      
+      const requestHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (idToken) {
+        requestHeaders["Authorization"] = `Bearer ${idToken}`;
+      }
+
       const res = await fetch("/api/journal/handwritten-ocr", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: requestHeaders,
         body: JSON.stringify({
           images: capturedImages,
           autoRedact,
-          userId,
+          userId: effectiveClientUserId,
           uploadedStorageUrls: uploaded.map(u => u.storageUri),
         }),
       });
@@ -655,9 +676,18 @@ export const HandwrittenCaptureModal: React.FC<HandwrittenCaptureModalProps> = (
 
           {/* Error Message */}
           {error && (
-            <div className="p-2.5 bg-[#AD3D30]/20 border border-[#AD3D30] rounded-xs text-xs text-[#e2e8f0] flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-[#AD3D30] shrink-0" />
-              <span>{error}</span>
+            <div className="p-2.5 bg-[#AD3D30]/20 border border-[#AD3D30] rounded-xs text-xs text-[#e2e8f0] flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#AD3D30] shrink-0" />
+                <span>{error}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleProcessOcr}
+                className="px-2 py-1 bg-[#AD3D30]/30 hover:bg-[#AD3D30]/50 text-white rounded-xs text-[10px] font-bold cursor-pointer transition-colors"
+              >
+                Retry
+              </button>
             </div>
           )}
         </div>
@@ -666,9 +696,18 @@ export const HandwrittenCaptureModal: React.FC<HandwrittenCaptureModalProps> = (
         <div className={`h-14 border-t px-4 flex items-center justify-between shrink-0 transition-colors ${
           isLight ? "bg-[#FAF9F6] border-[#E5E5E5]" : "bg-[#1c1c1c] border-[#3D4028]"
         }`}>
-          <span className={`text-[10px] font-mono truncate max-w-sm ${isLight ? "text-neutral-500" : "text-[#8C8C8C]"}`}>
-            {capturedImages.length} page(s) ready • Cloud Storage gs://ai-studio-bucket-118399207989-asia-southeast1/handwritten/
-          </span>
+          <div className="flex items-center gap-2 max-w-sm">
+            <span className={`text-[10px] font-mono truncate ${isLight ? "text-neutral-500" : "text-[#8C8C8C]"}`}>
+              {auth.currentUser ? (
+                <span className="text-[#10b981] font-medium flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" />
+                  <span>Authenticated Private GCS Partition ({auth.currentUser.email || auth.currentUser.uid.slice(0, 6)})</span>
+                </span>
+              ) : (
+                <span>Interactive OCR &amp; DLP Preview • {capturedImages.length} page(s) ready</span>
+              )}
+            </span>
+          </div>
 
           <div className="flex items-center gap-2">
             <button
