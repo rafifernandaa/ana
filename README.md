@@ -5,8 +5,6 @@
 [![Google AI Studio](https://img.shields.io/badge/Google_AI_Studio-Gemini_3.8_Flash-EA4335?style=for-the-badge&logo=googlegemini&logoColor=white)](https://aistudio.google.com)
 [![Firebase & Firestore](https://img.shields.io/badge/Cloud_Firestore-Isolated_Subcollections-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
 
-[👉 **Click Here to Launch the Live Web Application** 👈](https://ana-journ.ai.studio/)
-
 ---
 
 ## 📖 App Overview: What is Ana?
