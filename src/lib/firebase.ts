@@ -30,6 +30,13 @@ import {
   serverTimestamp,
   Timestamp
 } from "firebase/firestore";
+import {
+  getStorage,
+  ref,
+  uploadString,
+  getDownloadURL,
+  FirebaseStorage
+} from "firebase/storage";
 import firebaseConfig from "../../firebase-applet-config.json";
 
 // Initialize Firebase App
@@ -43,6 +50,68 @@ export const auth: Auth = getAuth(app);
 export const db: Firestore = firebaseConfig.firestoreDatabaseId 
   ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
   : getFirestore(app);
+
+// Initialize Google Cloud Storage / Firebase Storage instance
+export const storage: FirebaseStorage = getStorage(
+  app,
+  firebaseConfig.storageBucket ? `gs://${firebaseConfig.storageBucket}` : undefined
+);
+
+export interface UploadedHandwrittenImage {
+  storageUri: string;      // Canonical gs:// URI
+  downloadUrl: string;     // HTTPS CDN download URL
+  path: string;            // Cloud Storage path: handwritten/{userId}/{filename}
+  name: string;            // Filename
+}
+
+/**
+ * Uploads a base64 / data_url handwritten journal page to Google Cloud Storage
+ * using the official Firebase Web Modular SDK uploadString API.
+ */
+export async function uploadHandwrittenImageToStorage(
+  userId: string,
+  dataUrl: string,
+  pageIndex: number = 0
+): Promise<UploadedHandwrittenImage> {
+  const timestamp = Date.now();
+  const safeUserId = (userId && userId.trim()) ? userId.trim() : "anonymous";
+  
+  // Infer file format
+  let mimeType = "image/jpeg";
+  let extension = "jpg";
+  const mimeMatch = dataUrl.match(/^data:([^;]+);base64,/);
+  if (mimeMatch) {
+    mimeType = mimeMatch[1];
+    if (mimeType.includes("png")) extension = "png";
+    else if (mimeType.includes("webp")) extension = "webp";
+  }
+
+  const filename = `hw_${timestamp}_p${pageIndex + 1}.${extension}`;
+  const storagePath = `handwritten/${safeUserId}/${filename}`;
+  const storageRef = ref(storage, storagePath);
+
+  // Upload string using official Firebase Web SDK data_url format
+  await uploadString(storageRef, dataUrl, "data_url", {
+    contentType: mimeType,
+    customMetadata: {
+      uploadedBy: safeUserId,
+      uploadedAt: new Date().toISOString(),
+      pageIndex: String(pageIndex + 1),
+      source: "ana-handwritten-ocr-capture"
+    }
+  });
+
+  const downloadUrl = await getDownloadURL(storageRef);
+  const bucketName = firebaseConfig.storageBucket || "project-21ea57f4-102b-432a-98f.firebasestorage.app";
+  const storageUri = `gs://${bucketName}/${storagePath}`;
+
+  return {
+    storageUri,
+    downloadUrl,
+    path: storagePath,
+    name: filename
+  };
+}
 
 export const createGoogleProvider = () => {
   const provider = new GoogleAuthProvider();

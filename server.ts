@@ -1809,51 +1809,62 @@ function redactSensitiveData(text: string): DlpRedactionResult {
   const findings: Array<{ infoType: string; snippet: string }> = [];
   let redacted = text;
 
-  // 1. EMAIL_ADDRESS
+  // 1. EMAIL_ADDRESS (Google Cloud DLP infoType: EMAIL_ADDRESS)
   const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
   redacted = redacted.replace(emailRegex, (match) => {
     findings.push({ infoType: "EMAIL_ADDRESS", snippet: match });
     return `[REDACTED_EMAIL]`;
   });
 
-  // 2. PHONE_NUMBER (international & local formats)
+  // 2. PHONE_NUMBER (Google Cloud DLP infoType: PHONE_NUMBER)
   const phoneRegex = /(?:\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g;
   redacted = redacted.replace(phoneRegex, (match) => {
     findings.push({ infoType: "PHONE_NUMBER", snippet: match });
     return `[REDACTED_PHONE]`;
   });
 
-  // 3. CREDIT_CARD_NUMBER
+  // 3. CREDIT_CARD_NUMBER (Google Cloud DLP infoType: CREDIT_CARD_NUMBER)
   const cardRegex = /\b(?:\d{4}[-\s]?){3}\d{4}\b/g;
   redacted = redacted.replace(cardRegex, (match) => {
     findings.push({ infoType: "CREDIT_CARD_NUMBER", snippet: match });
     return `[REDACTED_CARD]`;
   });
 
-  // 4. US_SOCIAL_SECURITY_NUMBER / ID
+  // 4. US_SOCIAL_SECURITY_NUMBER / ID (Google Cloud DLP infoType: US_SOCIAL_SECURITY_NUMBER)
   const ssnRegex = /\b\d{3}-\d{2}-\d{4}\b/g;
   redacted = redacted.replace(ssnRegex, (match) => {
     findings.push({ infoType: "US_SOCIAL_SECURITY_NUMBER", snippet: match });
     return `[REDACTED_ID]`;
   });
 
-  // 5. API_KEY / PASSWORD / CREDENTIALS
+  // 5. API_KEY / PASSWORD / CREDENTIALS (Google Cloud DLP infoType: AUTH_TOKEN / ENCRYPTION_KEY)
   const credentialRegex = /(?:password|passwd|api[_-]?key|secret|token)\s*[:=]\s*['"]?([^\s'"]{6,})['"]?/gi;
   redacted = redacted.replace(credentialRegex, (match, cred) => {
     findings.push({ infoType: "CREDENTIAL", snippet: cred });
     return match.replace(cred, `[REDACTED_SECRET]`);
   });
 
-  // 6. PERSON_NAME (Titles & Contextual references per Google Cloud DLP spec)
+  // 6. PERSON_NAME (Google Cloud DLP infoType: PERSON_NAME)
+  // 6a. Title-based Names (Dr., Prof., Mr., Ms., etc.)
   const titleNameRegex = /\b(?:Mr\.|Mrs\.|Ms\.|Miss|Dr\.|Prof\.)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
   redacted = redacted.replace(titleNameRegex, (match, name) => {
     findings.push({ infoType: "PERSON_NAME", snippet: match });
     return match.replace(name, `[REDACTED_NAME]`);
   });
 
-  const contextualNameRegex = /\b(with|to|met|spoke with|talked with|talked to|called|told|emailed|friend|boss|manager|colleague|coworker|partner|therapist|doctor|named)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+  // 6b. Direct introductory sentences ("My name is Alicia Abernathy", "I am Robert Vance")
+  const introNameRegex = /\b(My name is|I am|This is|name is)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
+  redacted = redacted.replace(introNameRegex, (match, prefix, name) => {
+    const nonNames = ["I", "The", "A", "An", "My", "Our", "We", "He", "She", "It", "They", "Today", "Yesterday", "Here", "Now", "Fine", "Good", "Bad", "Happy", "Sad", "Ready", "Tired", "Excited", "Stressed", "Anxious", "Okay", "Done", "Doing", "Going", "Feeling"];
+    if (nonNames.includes(name)) return match;
+    findings.push({ infoType: "PERSON_NAME", snippet: name });
+    return `${prefix} [REDACTED_NAME]`;
+  });
+
+  // 6c. Contextual reference Names
+  const contextualNameRegex = /\b(with|to|met|spoke with|talked with|talked to|called|told|emailed|friend|boss|manager|colleague|coworker|partner|therapist|doctor|saw|visited|consulted|named)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/g;
   redacted = redacted.replace(contextualNameRegex, (match, prefix, name) => {
-    const nonNames = ["I", "The", "A", "An", "My", "Our", "We", "He", "She", "It", "They", "Today", "Yesterday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const nonNames = ["I", "The", "A", "An", "My", "Our", "We", "He", "She", "It", "They", "Today", "Yesterday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December", "Dr", "Mr", "Mrs", "Ms", "Doctor", "Therapist"];
     if (nonNames.includes(name)) return match;
     findings.push({ infoType: "PERSON_NAME", snippet: name });
     return `${prefix} [REDACTED_NAME]`;
@@ -1892,7 +1903,12 @@ app.post("/api/privacy/redact-dlp", (req: Request, res: Response) => {
 // API: Handwritten Journal OCR & Cloud Storage Archival with Gemini Multimodal & Cloud DLP
 app.post("/api/journal/handwritten-ocr", async (req: Request, res: Response) => {
   try {
-    const { images = [], autoRedact = true, userId = "anonymous" } = req.body || {};
+    const { 
+      images = [], 
+      autoRedact = true, 
+      userId = "anonymous",
+      uploadedStorageUrls = []
+    } = req.body || {};
 
     if (!Array.isArray(images) || images.length === 0) {
       return res.status(400).json({ error: "At least one handwritten image is required." });
@@ -1902,7 +1918,10 @@ app.post("/api/journal/handwritten-ocr", async (req: Request, res: Response) => 
       imageCount: images.length,
       userId,
       autoRedact,
+      uploadedCount: uploadedStorageUrls.length,
     });
+
+    const canonicalBucket = process.env.FIREBASE_STORAGE_BUCKET || "project-21ea57f4-102b-432a-98f.firebasestorage.app";
 
     // 1. Prepare image parts for Gemini Multimodal
     const parts: any[] = [];
@@ -1925,9 +1944,10 @@ app.post("/api/journal/handwritten-ocr", async (req: Request, res: Response) => 
         base64Data = String(img);
       }
 
-      // Simulated Cloud Storage bucket path & signed URL
+      // Canonical Cloud Storage bucket path & URI
+      const clientUrl = uploadedStorageUrls[i];
       const imageId = `hw_${Date.now()}_p${i + 1}`;
-      const cloudStorageUri = `gs://ana-handwritten-archives/${userId}/${imageId}.jpg`;
+      const cloudStorageUri = clientUrl || `gs://${canonicalBucket}/handwritten/${userId}/${imageId}.jpg`;
       storageUrls.push(cloudStorageUri);
 
       parts.push({
@@ -1984,7 +2004,7 @@ ${autoRedact ? "4. SENSITIVE DATA PROTECTION (Google Cloud DLP): Mask all specif
       findingsCount: dlpResult.findingsCount,
       findings: dlpResult.findings,
       storageUrls,
-      cloudStorageBucket: "gs://ana-handwritten-archives/",
+      cloudStorageBucket: `gs://${canonicalBucket}/handwritten/`,
       modelUsed: ocrResult.modelUsed,
       timestamp: new Date().toISOString(),
     });

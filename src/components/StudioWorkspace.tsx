@@ -669,16 +669,23 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                       <Camera className="w-3 h-3" />
                       ATTACHED HANDWRITTEN PAGES ({currentEntry.attachedHandwrittenImages.length})
                     </span>
-                    <span className="font-mono text-[9px] text-[#8C8C8C]">gs://ana-handwritten-archives/</span>
+                    <span className="font-mono text-[9px] text-[#8C8C8C]">gs://project-21ea57f4-102b-432a-98f.firebasestorage.app/handwritten/</span>
                   </div>
                   <div className="flex items-center gap-2 overflow-x-auto pb-1">
                     {currentEntry.attachedHandwrittenImages.map((img, idx) => (
-                      <div key={idx} className="relative w-14 h-14 rounded-xs border border-[#3D4028] overflow-hidden shrink-0 group">
-                        <img src={img} alt={`Handwritten page ${idx + 1}`} className="w-full h-full object-cover" />
+                      <a 
+                        key={idx} 
+                        href={img} 
+                        target="_blank" 
+                        rel="noreferrer noopener"
+                        className="relative w-14 h-14 rounded-xs border border-[#3D4028] hover:border-[#A3A649] overflow-hidden shrink-0 group block transition-all"
+                        title="Click to view archived handwritten page in Google Cloud Storage"
+                      >
+                        <img src={img} alt={`Handwritten page ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                         <span className="absolute bottom-0.5 left-0.5 text-[8px] bg-black/80 px-1 text-white">
                           P{idx + 1}
                         </span>
-                      </div>
+                      </a>
                     ))}
                   </div>
                 </div>
