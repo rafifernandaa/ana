@@ -967,28 +967,67 @@ interface EmailDispatchResult {
   errorDetail?: string;
 }
 
+function sanitizeSecret(val?: string | null): string {
+  if (!val || typeof val !== "string") return "";
+  return val
+    .trim()
+    .replace(/[\r\n\t]/g, "")
+    .replace(/^bearer\s+/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
 async function sendEmailNotification(options: EmailDispatchOptions): Promise<EmailDispatchResult> {
   const { to, name, subject, html, text, provider = "auto", apiKey, fromEmail } = options;
 
-  // Determine active provider: explicit override -> apiKey prefix check -> environment variable check
-  const hasResend = !!(apiKey && (apiKey.startsWith("re_") || provider === "resend")) || (!apiKey && !!process.env.RESEND_API_KEY && provider !== "sendgrid");
-  const hasSendGrid = !!(apiKey && (apiKey.startsWith("SG.") || provider === "sendgrid")) || (!apiKey && !!process.env.SENDGRID_API_KEY && provider !== "resend");
+  const cleanTo = (to || "").trim().toLowerCase();
+  if (!cleanTo || !cleanTo.includes("@")) {
+    return {
+      success: false,
+      provider: "preview_mock",
+      message: "A valid recipient email address is required.",
+      errorDetail: "Invalid recipient email format",
+    };
+  }
 
-  // 1. Resend REST API (Direct HTTP POST without heavy SDKs)
-  if ((provider === "resend" || (provider === "auto" && hasResend)) && (apiKey || process.env.RESEND_API_KEY)) {
-    const key = apiKey || process.env.RESEND_API_KEY;
-    const sender = fromEmail || process.env.RESEND_FROM_EMAIL || "Ana Journal <onboarding@resend.dev>";
+  const directKey = sanitizeSecret(apiKey);
+  const envResendKey = sanitizeSecret(process.env.RESEND_API_KEY);
+  const envSendgridKey = sanitizeSecret(process.env.SENDGRID_API_KEY);
+
+  const resendKey = directKey && (directKey.startsWith("re_") || provider === "resend") ? directKey : (envResendKey || directKey);
+  const sendgridKey = directKey && (directKey.startsWith("SG.") || provider === "sendgrid") ? directKey : (envSendgridKey || directKey);
+
+  const shouldTryResend = 
+    provider === "resend" ||
+    (provider === "auto" && (directKey.startsWith("re_") || (envResendKey && !directKey.startsWith("SG.")) || (!directKey && !!envResendKey)));
+
+  const shouldTrySendgrid = 
+    provider === "sendgrid" ||
+    (provider === "auto" && (directKey.startsWith("SG.") || (envSendgridKey && !directKey.startsWith("re_") && !envResendKey) || (!directKey && !envResendKey && !!envSendgridKey)));
+
+  // 1. Resend REST API (Direct HTTP POST without external SDKs)
+  if (shouldTryResend && resendKey) {
+    const rawSender = sanitizeSecret(fromEmail || process.env.RESEND_FROM_EMAIL);
+    const sender = rawSender || "Ana Journal <onboarding@resend.dev>";
+    const formattedSender = sender.includes("<") ? sender : `Ana Journal <${sender}>`;
 
     try {
+      logStructured("INFO", "Initiating live email dispatch via Resend REST API", {
+        recipient: cleanTo,
+        sender: formattedSender,
+        hasKey: !!resendKey,
+        keyPrefix: resendKey.slice(0, 5) + "...",
+      });
+
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${key}`,
+          "Authorization": `Bearer ${resendKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: sender.includes("<") ? sender : `Ana Journal <${sender}>`,
-          to: [to],
+          from: formattedSender,
+          to: [cleanTo],
           subject,
           html,
           text,
@@ -998,27 +1037,37 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<Ema
       if (res.ok) {
         const data = await res.json().catch(() => ({ id: "sent" }));
         logStructured("INFO", "Email dispatched successfully via Resend API", {
-          recipient: to,
+          recipient: cleanTo,
           resendId: data.id,
           provider: "resend",
         });
         return {
           success: true,
           provider: "resend",
-          message: `Live email dispatched to ${to} via Resend REST API (ID: ${data.id || "delivered"}).`,
+          message: `Live email dispatched to ${cleanTo} via Resend REST API (ID: ${data.id || "delivered"}). Check your inbox and Spam/Junk folder.`,
           id: data.id,
           preview: html,
         };
       }
 
       const errData = await res.json().catch(() => ({ message: res.statusText }));
-      const errMsg = errData.message || (typeof errData === "string" ? errData : JSON.stringify(errData));
-      logStructured("ERROR", "Resend API returned error status", { status: res.status, error: errMsg });
+      const rawErrMsg = errData.message || (typeof errData === "string" ? errData : JSON.stringify(errData));
+      
+      let userFriendlyMsg = `Resend dispatch failed (HTTP ${res.status}): ${rawErrMsg}`;
+      if (res.status === 403 && /only send testing emails to your own email address/i.test(rawErrMsg)) {
+        userFriendlyMsg = `Resend Free Sandbox Restriction: Resend's free tier only permits sending to the email address registered on your Resend account. Ensure your Recipient Email matches your Resend account email (${cleanTo}), or verify your custom domain at resend.com/domains. (${rawErrMsg})`;
+      } else if (res.status === 401) {
+        userFriendlyMsg = `Invalid Resend API Key: The key provided was rejected by Resend (HTTP 401). Please verify your API key from resend.com/api-keys.`;
+      } else if (res.status === 422 && /domain/i.test(rawErrMsg)) {
+        userFriendlyMsg = `Unverified Domain: Resend rejected the sender domain. Use onboarding@resend.dev or verify your domain at resend.com/domains. (${rawErrMsg})`;
+      }
+
+      logStructured("ERROR", "Resend API returned error status", { status: res.status, error: rawErrMsg, userFriendlyMsg });
       return {
         success: false,
         provider: "resend",
-        message: `Resend dispatch failed (${res.status}): ${errMsg}`,
-        errorDetail: errMsg,
+        message: userFriendlyMsg,
+        errorDetail: rawErrMsg,
       };
     } catch (err: any) {
       logStructured("ERROR", "Resend API request exception", { error: err?.message });
@@ -1032,9 +1081,10 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<Ema
   }
 
   // 2. SendGrid REST API (Google Cloud Marketplace Preferred Transactional Email Partner)
-  if ((provider === "sendgrid" || (provider === "auto" && hasSendGrid)) && (apiKey || process.env.SENDGRID_API_KEY)) {
-    const key = apiKey || process.env.SENDGRID_API_KEY;
-    const sender = fromEmail || process.env.SENDGRID_FROM_EMAIL || "notifications@ana-journal.app";
+  if (shouldTrySendgrid && sendgridKey) {
+    const key = sendgridKey;
+    const rawSender = sanitizeSecret(fromEmail || process.env.SENDGRID_FROM_EMAIL);
+    const sender = rawSender || "notifications@ana-journal.app";
 
     try {
       const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
@@ -1044,7 +1094,7 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<Ema
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          personalizations: [{ to: [{ email: to, name: name || to.split("@")[0] }] }],
+          personalizations: [{ to: [{ email: cleanTo, name: name || cleanTo.split("@")[0] }] }],
           from: { email: sender, name: "Ana Circadian Journal" },
           subject,
           content: [
@@ -1056,14 +1106,14 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<Ema
 
       if (res.ok || res.status === 202) {
         logStructured("INFO", "Email dispatched successfully via SendGrid API", {
-          recipient: to,
+          recipient: cleanTo,
           provider: "sendgrid",
           statusCode: res.status,
         });
         return {
           success: true,
           provider: "sendgrid",
-          message: `Live email dispatched to ${to} via SendGrid REST API (${res.status} Accepted).`,
+          message: `Live email dispatched to ${cleanTo} via SendGrid REST API (${res.status} Accepted). Check your inbox and Spam/Junk folder.`,
           preview: html,
         };
       }
@@ -1207,8 +1257,8 @@ function createCircadianEmailHtml(userName: string, hoursInactive: number, phase
 
 // API: Notification & Email Provider Configuration Status
 app.get("/api/notifications/config", (_req: Request, res: Response) => {
-  const hasResend = !!process.env.RESEND_API_KEY;
-  const hasSendGrid = !!process.env.SENDGRID_API_KEY;
+  const hasResend = !!sanitizeSecret(process.env.RESEND_API_KEY);
+  const hasSendGrid = !!sanitizeSecret(process.env.SENDGRID_API_KEY);
   const activeProvider = hasResend ? "resend" : hasSendGrid ? "sendgrid" : "preview_mock";
 
   return res.json({

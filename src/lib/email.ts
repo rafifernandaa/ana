@@ -53,19 +53,39 @@ export interface SchedulerInactivityCheckParams {
 export const dispatchTestEmail = async (
   request: EmailTestRequest
 ): Promise<EmailDispatchResult> => {
-  const response = await fetch("/api/notifications/send-email", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  });
+  try {
+    const response = await fetch("/api/notifications/send-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(request),
+    });
 
-  const data = await response.json().catch(() => ({}));
+    const data = await response.json().catch(() => ({}));
 
-  if (!response.ok) {
-    throw new Error(data.error || data.message || `Email dispatch failed with status ${response.status}`);
+    if (!response.ok) {
+      return {
+        status: "error",
+        provider: data.provider || (request.apiKey?.trim().startsWith("re_") || request.provider === "resend" ? "resend" : "preview_mock"),
+        message: data.error || data.message || `Email dispatch failed (HTTP ${response.status})`,
+        recipient: request.recipientEmail,
+        subject: "Ana // Circadian Inactivity Alert",
+        timestamp: new Date().toISOString(),
+        errorDetail: data.errorDetail || data.error,
+      };
+    }
+
+    return data;
+  } catch (err: any) {
+    return {
+      status: "error",
+      provider: request.apiKey?.trim().startsWith("re_") || request.provider === "resend" ? "resend" : "preview_mock",
+      message: err?.message || "Failed to reach email service",
+      recipient: request.recipientEmail,
+      subject: "Ana // Circadian Inactivity Alert",
+      timestamp: new Date().toISOString(),
+      errorDetail: err?.message,
+    };
   }
-
-  return data;
 };
 
 /**

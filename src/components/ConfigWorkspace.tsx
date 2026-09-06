@@ -869,44 +869,50 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
                     {emailTestResult && (
                       <div className={`p-3 rounded-xs border text-xs space-y-2 animate-in fade-in duration-200 ${
                         emailTestResult.status === "error"
-                          ? "bg-[#AD3D30]/15 border-[#AD3D30] text-[#e2e8f0]"
+                          ? "bg-[#AD3D30]/20 border-2 border-[#AD3D30] text-white light:bg-[#FDF2F0] light:border-[#E29B93] light:text-[#7B1E14]"
                           : emailTestResult.status === "sent"
-                          ? "bg-[#10b981]/15 border-[#10b981] text-[#e2e8f0]"
-                          : "bg-[#A3A649]/15 border-[#A3A649] text-[#e2e8f0]"
+                          ? "bg-[#10b981]/20 border-2 border-[#10b981] text-white light:bg-[#ECFDF5] light:border-[#6EE7B7] light:text-[#065F46]"
+                          : "bg-[#A3A649]/20 border border-[#A3A649] text-white light:bg-[#F7FEE7] light:border-[#BEF264] light:text-[#365314]"
                       }`}>
-                        <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                        <div className="flex items-center justify-between border-b border-white/10 light:border-black/10 pb-1.5">
                           <span className={`font-bold flex items-center gap-1.5 text-xs ${
                             emailTestResult.status === "error"
-                              ? "text-[#AD3D30]"
+                              ? "text-[#fca5a5] light:text-[#991b1b]"
                               : emailTestResult.status === "sent"
-                              ? "text-[#10b981]"
-                              : "text-[#d4da55]"
+                              ? "text-[#34d399] light:text-[#047857]"
+                              : "text-[#d4da55] light:text-[#4d7c0f]"
                           }`}>
                             {emailTestResult.status === "error" ? (
-                              <AlertCircle className="w-4 h-4 text-[#AD3D30]" />
+                              <AlertCircle className="w-4 h-4 text-[#f87171] light:text-[#dc2626]" />
                             ) : emailTestResult.status === "sent" ? (
-                              <CheckCircle2 className="w-4 h-4 text-[#10b981]" />
+                              <CheckCircle2 className="w-4 h-4 text-[#10b981] light:text-[#059669]" />
                             ) : (
-                              <Sparkles className="w-4 h-4 text-[#d4da55]" />
+                              <Sparkles className="w-4 h-4 text-[#d4da55] light:text-[#65a30d]" />
                             )}
                             {emailTestResult.status === "error"
-                              ? "DISPATCH ERROR"
+                              ? "DISPATCH NOTICE"
                               : emailTestResult.status === "sent"
-                              ? "EMAIL DELIVERED TO INBOX"
+                              ? "EMAIL DELIVERED"
                               : "DIAGNOSTIC PREVIEW GENERATED"}
                           </span>
-                          <span className="text-[10px] font-mono uppercase bg-black/40 px-2 py-0.5 rounded border border-white/10 text-[#d4da55]">
+                          <span className="text-[10px] font-mono uppercase bg-black/40 light:bg-white/80 px-2 py-0.5 rounded border border-white/10 light:border-black/10 text-[#d4da55] light:text-[#1e293b]">
                             PROVIDER: {emailTestResult.provider}
                           </span>
                         </div>
 
-                        <p className="text-[11.5px] leading-relaxed">
+                        <p className="text-[11.5px] leading-relaxed font-sans text-white light:text-inherit">
                           {emailTestResult.message}
                         </p>
 
+                        {emailTestResult.status === "sent" && (
+                          <div className="p-2 bg-black/40 light:bg-emerald-50 rounded text-[10.5px] text-[#a7f3d0] light:text-[#047857] border border-white/10 light:border-emerald-200 font-sans">
+                            📬 <strong>Notice:</strong> If the email does not appear in your Primary tab, check your <strong>Spam / Junk</strong> or <strong>Promotions</strong> folder.
+                          </div>
+                        )}
+
                         {emailTestResult.id && (
-                          <div className="text-[10px] font-mono text-[#8C8C8C]">
-                            Provider Reference ID: <span className="text-white">{emailTestResult.id}</span>
+                          <div className="text-[10px] font-mono text-[#cbd5e1] light:text-[#475569]">
+                            Provider Reference ID: <span className="text-white light:text-black font-semibold">{emailTestResult.id}</span>
                           </div>
                         )}
 
