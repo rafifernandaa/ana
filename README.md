@@ -1,55 +1,160 @@
 # Ana — Neuroscience-Informed Journaling & Somatic Reset System
 
-> **Google Cloud & Hack2Skill APAC GenAI Academy (Cohort 3) — Ideathon Challenge**  
-> **Public Repository:** [https://github.com/rafifernandaa/ana.git](https://github.com/rafifernandaa/ana.git)
+[![Live Application](https://img.shields.io/badge/🚀_Launch_Live_App-Ana_Studio-A3A649?style=for-the-badge&logo=googlecloud&logoColor=white)](https://ana-journ.ai.studio/)
+[![Google Cloud Run](https://img.shields.io/badge/Google_Cloud_Run-Deployed-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
+[![Google AI Studio](https://img.shields.io/badge/Google_AI_Studio-Gemini_3.8_Flash-EA4335?style=for-the-badge&logo=googlegemini&logoColor=white)](https://aistudio.google.com)
+[![Firebase & Firestore](https://img.shields.io/badge/Cloud_Firestore-Isolated_Subcollections-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
 
-Ana is a production-grade, neuroscience-grounded journaling and somatic reset companion built on **Google AI Studio**, **Google Cloud Run**, and **Cloud Firestore**. By integrating empirical principles of neuroplasticity, affect labeling, cognitive reframing, expressive writing, synaptic pruning rituals, and polyvagal glimmer anchoring, Ana empowers users to physically rewire stress responses, externalize cognitive distortions, and track subjective neural adaptability over longitudinal timeframes.
+[👉 **Click Here to Launch the Live Web Application** 👈](https://ana-journ.ai.studio/)
+
+---
+
+## 📖 App Overview: What is Ana?
+
+**Ana** is a production-grade, neuroscience-grounded journaling and emotional regulation web companion designed to down-regulate autonomic stress, externalize catastrophic rumination, and cultivate long-term psychological flexibility. 
+
+Unlike traditional journaling apps that merely store passive text, Ana functions as an active neuro-cognitive coprocessor. Rooted in research across **neuroplasticity**, **affect labeling**, **polyvagal theory**, **cognitive reframing**, and **expressive writing (Pennebaker Paradigm)**, Ana guides users through structured somatic resets, synaptic pruning rituals, and psychiatric decentering exercises that physically rewire automatic stress patterns into rational prefrontal anchors.
+
+### 🌟 Core Feature Matrix
+
+1. **Multi-Turn Expressive Journaling & Pennebaker Synthesis**:
+   - Conversational AI reflection companion that honors emotional reality without toxic positivity.
+   - Generates executive cognitive summaries, key takeaways, and deep reflection questions.
+2. **Psychiatric Decentering ("Vent-to-Clarity" Station)**:
+   - Anti-rumination timed venting workspace with real-time word limits to prevent recursive spiraling.
+   - Deconstructs emotional distress into 4 clinical pillars: **Camera-Verifiable Facts**, **Interpretive Mind-Reading Projections**, **Circle of Control Agency Mapping**, and **5-Minute Micro-Action Anchors**.
+   - Integrated dual-inhalation **Physiological Sigh** grounding pacer with harmonic binaural audio.
+3. **Synaptic Pruning Ritual**:
+   - Analyzes automatic thoughts to identify cognitive distortions (catastrophizing, black-and-white thinking, emotional reasoning).
+   - Rewires distortions into rational prefrontal anchors, concluding with an interactive particle dissolution ceremony that dissolves the loop.
+4. **Polyvagal Glimmer Vault & Mining**:
+   - AI-powered mining of sensory micro-moments of autonomic safety from raw journal entries.
+   - Interactive 10-second vagal brake reset pacer to stimulate parasympathetic recovery.
+5. **3D Somatic Reset Room**:
+   - Interactive Three.js body tension mapper to pinpoint somatic holding patterns.
+   - Guided 4-7-8 vagus nerve breathing pacer, tension discharge log, and cognitive perspective realigner.
+6. **Circadian Loop Closure & Inactivity Alerts**:
+   - Morning dopamine priming and evening cognitive loop-offloading before sleep.
+   - Transactional email dispatch engine delivering compassionate re-engagement prompts when inactivity exceeds 20 hours.
+7. **Empirical Telemetry & Longitudinal Synthesis**:
+   - Extracts objective sleep scores, somatic tension levels, and mental clarity from reflections.
+   - Multi-week synthesis engine calculating mood trajectories and neural adaptability indexes.
+8. **DLP Privacy Redaction**:
+   - Automatic sanitization of PII, credit cards, emails, phone numbers, and credentials before data leaves the browser.
+9. **Handwritten Journal OCR**:
+   - Multimodal Gemini Vision digitizer transcribing physical handwritten notes directly into structured digital reflections.
+10. **Dual-Mode Google Workspace Integration**:
+    - Auto-sync on save and manual CSV export to Google Sheets via Sheets API v4 and Google Apps Script.
 
 ---
 
 ## 🏛️ System Architecture
 
-Ana employs a **Zero-Client-Key Architecture**: the browser client never receives, bundles, or directly accesses API credentials. All AI calls, database operations, and external notification dispatches are routed through an Express backend proxy running on Google Cloud Run.
+Ana implements a **Zero-Client-Key Architecture**: the browser client never receives, bundles, or directly accesses API credentials. All AI calls, database operations, and external notification dispatches are securely proxied through an Express backend running on Google Cloud Run.
 
-```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                             CLIENT (BROWSER)                                │
-│   React 19 + TypeScript 5.8 + Vite 6 + Tailwind CSS 4 + Motion + Three.js   │
-└──────────────────────┬───────────────────────────────┬──────────────────────┘
-                       │ HTTPS / JSON                  │ Firebase Auth
-                       ▼                               ▼
-┌──────────────────────────────────────────────┐  ┌───────────────────────────┐
-│              GOOGLE CLOUD RUN                │  │    FIREBASE AUTHENTICATION│
-│   Node.js 24 + Express 4 Backend Proxy       │  │    Google OAuth Provider  │
-│   (/dist/server.cjs - Zero-Trust Gateway)    │  └─────────────┬─────────────┘
-└──────┬───────────────┬───────────────┬───────┘                │
-       │               │               │                        │ UID Verified
-       ▼               ▼               ▼                        ▼
-┌──────────────┐ ┌───────────┐ ┌──────────────┐   ┌───────────────────────────┐
-│GOOGLE SECRET │ │GOOGLE AI  │ │RESEND /      │   │      CLOUD FIRESTORE      │
-│   MANAGER    │ │  STUDIO   │ │SENDGRID REST │   │ Strict User-Isolated Data │
-│GEMINI_API_KEY│ │Gemini 3.8 │ │Transactional │   │  /users/{userId}/*        │
-│RESEND_API_KEY│ │Flash +    │ │Circadian     │   │(Entries, Sessions, Loops, │
-│              │ │Ladder     │ │Notifications │   │ Glimmers, Telemetry)      │
-└──────────────┘ └───────────┘ └──────────────┘   └───────────────────────────┘
-```
+```mermaid
+flowchart TD
+    subgraph Client["Client Tier (Browser)"]
+        UI["React 19 + TypeScript + Tailwind CSS"]
+        Three["Three.js 3D Somatic Reset & Chronicle"]
+        AuthClient["Firebase Auth Client (Google OAuth)"]
+    end
 
-- **Frontend**: React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, Motion (`motion/react`), Three.js (`@react-three/fiber`, `@react-three/drei`), Lucide React, Recharts, Canvas Confetti.
-- **Backend Proxy**: Node.js 24, Express 4, Google GenAI SDK (`@google/genai`), Dotenv, Esbuild.
-- **Database & Auth**: Firebase Authentication (Google OAuth), Cloud Firestore (isolated subcollections).
-- **Deployment & Cloud**: Google Cloud Run, Google Secret Manager, Google Cloud Scheduler, Cloud Logging.
+    subgraph GoogleCloud["Google Cloud Platform"]
+        subgraph CloudRun["Cloud Run (Serverless Container)"]
+            Express["Node.js 24 + Express Backend Proxy"]
+            DLP["PII / DLP Sanitizer"]
+            Fallbacks["Gemini Resilient Fallback Ladder"]
+            EmailEngine["Circadian Inactivity Engine"]
+        end
+
+        subgraph SecuritySecrets["Identity & Secret Management"]
+            SecretMgr["Google Cloud Secret Manager\n(GEMINI_API_KEY, RESEND_API_KEY)"]
+            Scheduler["Google Cloud Scheduler\n(Periodic Circadian Cron)"]
+            Logging["Google Cloud Logging\n(Structured JSON Telemetry)"]
+        end
+
+        subgraph GoogleAI["Google AI Studio / Gemini API"]
+            Gemini38["gemini-3.8-flash (Primary Engine)"]
+            Gemini37["gemini-3.7-flash (Fallback Layer 1)"]
+            Gemini36["gemini-3.6-flash (Fallback Layer 2)"]
+            GeminiVision["Multimodal Vision (Handwritten OCR)"]
+        end
+
+        subgraph FirebaseCloud["Firebase & Cloud Firestore"]
+            FirebaseAuth["Firebase Authentication (OAuth Token Validation)"]
+            FirestoreDB["Cloud Firestore (Strict Owner Isolation)"]
+            Rules["firestore.rules (request.auth.uid == userId)"]
+        end
+    end
+
+    subgraph External["External Services"]
+        ResendAPI["Resend / SendGrid REST API"]
+        SheetsAPI["Google Sheets API v4 + Apps Script"]
+    end
+
+    UI -->|"HTTPS REST API (/api/*)"| Express
+    AuthClient -->|"Google Sign-In"| FirebaseAuth
+    FirebaseAuth -->|"Validated UID"| FirestoreDB
+    Express -->|"Owner Scoped Data Queries"| FirestoreDB
+    FirestoreDB -.->|"Enforced by"| Rules
+    SecretMgr -->|"Injected at Runtime"| CloudRun
+    Scheduler -->|"POST /api/scheduler/check-inactivity"| Express
+    Express -->|"Structured JSON Observability"| Logging
+    Express -->|"Zero-Client-Key SDK Proxy"| Fallbacks
+    Fallbacks --> Gemini38
+    Gemini38 -.->|"Failover"| Gemini37
+    Gemini37 -.->|"Failover"| Gemini36
+    Express -->|"Image Buffer"| GeminiVision
+    EmailEngine -->|"Transactional Dispatch"| ResendAPI
+    Express -->|"Telemetry Sync"| SheetsAPI
+```
 
 ---
 
-## 🧠 Neuroscience Pillars Implemented
+## ☁️ Google Cloud & Google Services Integration
 
-1. **Affect Labeling**: Transforming raw, unnamed somatic tension into precise emotional nomenclature, immediately down-regulating amygdala hyperactivity.
-2. **Synaptic Pruning Ritual**: Cognitive distortion deconstruction powered by Gemini, concluding with an interactive particle dissolution ceremony that rewires catastrophizing into prefrontal rational anchors (`/users/{userId}/pruned_loops`).
-3. **Cognitive Reframing**: Automated cognitive restructuring separating camera-verifiable facts from emotional projections.
-4. **Polyvagal Glimmer Vault**: Mining and anchoring autonomic safety micro-moments to engage the ventral vagal brake (`/users/{userId}/glimmers`).
-5. **Psychiatric Decentering ("Vent-to-Clarity" Station)**: Transforms unstructured venting into clinical clarity with anti-rumination pacing, camera-fact filtering, Circle of Control mapping, and physiological sigh breathwork (`/users/{userId}/psychiatric_distillations`).
-6. **Circadian Loop Closure**: Morning dopamine priming and evening cognitive offloading (`/users/{userId}/circadian_entries`) paired with transactional email nudges to prevent cortisol-driven sleep disruption.
-7. **Empirical Telemetry Extraction**: Structured longitudinal tracking of sleep score, somatic tension, and mental clarity synthesized across multi-week arcs.
+Ana is engineered to deeply leverage Google's managed cloud and AI ecosystem:
+
+### 1. Google Gemini & Google AI Studio
+- **What We Built**: The cognitive engine powering all emotional labeling, psychiatric decentering, synaptic pruning, glimmer discovery, and OCR transcription.
+- **How It's Used**: Powered by `@google/genai` on Node.js 24 with custom system instructions (Constitution) enforcing empathetic, non-diagnostic boundaries.
+- **Resilient Fallback Ladder**:
+  - Primary: `gemini-3.8-flash`
+  - Fallback 1: `gemini-3.7-flash`
+  - Fallback 2: `gemini-3.6-flash`
+- **Structured Schema Outputs**: All responses use strict JSON Schema mode with defensive server-side parsing.
+
+### 2. Firebase Authentication
+- **What We Built**: Zero-friction Google OAuth identity verification.
+- **How It's Used**: Authenticates users and mints cryptographic ID tokens. The authenticated `uid` serves as the strict security boundary for all downstream database subcollections.
+
+### 3. Google Cloud Firestore
+- **What We Built**: Persistent, real-time NoSQL storage for all user reflections, somatic states, pruned thoughts, and longitudinal telemetry.
+- **How It's Used**: Structured under isolated subcollections:
+  - `/users/{userId}/entries` — Journal reflections & empirical telemetry
+  - `/users/{userId}/sessions` — Somatic reset room records
+  - `/users/{userId}/pruned_loops` — Rewired cognitive distortion anchors
+  - `/users/{userId}/glimmers` — Autonomic safety anchors
+  - `/users/{userId}/psychiatric_distillations` — Vent-to-Clarity decentered records
+  - `/users/{userId}/circadian_entries` — Day boundary check-ins
+- **Security Rules**: Guarded by `firestore.rules` enforcing `request.auth.uid == userId`.
+
+### 4. Google Cloud Run
+- **What We Built**: The containerized full-stack deployment serving the React 19 single-page application and the Express API gateway.
+- **How It's Used**: Hosted on managed Cloud Run (`asia-southeast1`). Provides auto-scaling from 0 to peak, TLS termination, request deserialization with strict 10MB limits, and complete proxy isolation so no API keys reach the client.
+
+### 5. Google Cloud Secret Manager
+- **What We Built**: Secure credential storage protecting production keys.
+- **How It's Used**: Stores `GEMINI_API_KEY` and `RESEND_API_KEY`. Secrets are dynamically bound into Cloud Run environment variables at runtime via `--set-secrets`, preventing secrets from ever touching source control or container images.
+
+### 6. Google Cloud Scheduler
+- **What We Built**: Automated circadian loop closure notification triggers.
+- **How It's Used**: An authenticated serverless HTTP cron job (`0 */4 * * *`) invoking `/api/scheduler/check-inactivity` on Cloud Run to evaluate user elapsed time and dispatch loop-closure prompts.
+
+### 7. Google Cloud Logging
+- **What We Built**: Centralized observability and runtime audit trail.
+- **How It's Used**: Emits structured JSON logs containing request IDs, latency metrics, fallback model transitions, and notification dispatch statuses.
 
 ---
 
@@ -99,12 +204,6 @@ service cloud.firestore {
 
 Ana uses Google AI Studio system instructions to enforce grounded clinical empathy, tone directives, and strict schema compliance.
 
-### 1. Model Configuration
-- **Primary Model**: `gemini-3.8-flash`
-- **Fallback Ladder**: `gemini-3.8-flash` → `gemini-3.7-flash` → `gemini-3.6-flash`
-- **Response Format**: Structured JSON schema output (`application/json`) with defensive server-side parsing.
-
-### 2. System Directive (Constitution)
 ```text
 You are Ana, an empathetic, neuroscience-grounded journaling and cognitive reflection companion.
 Principles:
@@ -118,7 +217,7 @@ Principles:
 
 ## 🔐 Google Cloud Secret Manager Configuration
 
-Secrets are never committed to version control or bundled into client code. Configure them in Google Secret Manager:
+Configure API keys securely in Secret Manager:
 
 ```bash
 # 1. Enable Google Cloud APIs
@@ -150,15 +249,14 @@ gcloud secrets add-iam-policy-binding RESEND_API_KEY \
 Deploy Ana directly to Cloud Run with automated secret bindings:
 
 ```bash
-# 1. Deploy service with Secret Manager bindings and Challenge verification labels
+# 1. Deploy service with Secret Manager bindings
 gcloud run deploy ana-neuro-journal \
   --source . \
   --platform managed \
   --region asia-southeast1 \
   --allow-unauthenticated \
   --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
-  --set-env-vars="NODE_ENV=production,RESEND_FROM_EMAIL=Ana Journal <onboarding@resend.dev>" \
-  --update-labels=dev-tutorial=cloud-run-ai-challenge
+  --set-env-vars="NODE_ENV=production,RESEND_FROM_EMAIL=Ana Journal <onboarding@resend.dev>"
 
 # 2. Configure Google Cloud Scheduler for Circadian Inactivity Checks (every 4 hours)
 SERVICE_URL=$(gcloud run services describe ana-neuro-journal --region=asia-southeast1 --format="value(status.url)")
@@ -229,6 +327,5 @@ cp .env.example .env
 
 ---
 
-## 📄 License & Attribution
-Engineered by **Rafif Fernanda** for the **Google Cloud & Hack2Skill APAC GenAI Academy (Cohort 3) Ideathon Challenge**.
+## 📄 License
 Licensed under the Apache-2.0 License.
