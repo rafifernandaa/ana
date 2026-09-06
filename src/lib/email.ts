@@ -209,7 +209,7 @@ export const getEmailTemplateHtml = (
             <!-- Audit Footer -->
             <tr>
               <td style="padding: 16px 24px; border-top: 1px solid #3D4028; background-color: #141414; font-size: 10.5px; color: #737373; font-family: monospace; text-align: center; line-height: 1.6;">
-                Engineered for Google Cloud &amp; Hack2Skill Ideathon Challenge Cohort 3<br/>
+                Ana // Neuroscience-Informed Journaling &amp; Somatic Reset System<br/>
                 Dispatched via Google Cloud Scheduler &amp; Cloud Run (asia-southeast1) • Synced with Cloud Firestore (us-west1)
               </td>
             </tr>

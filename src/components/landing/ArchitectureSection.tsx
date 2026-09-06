@@ -87,7 +87,7 @@ export const ArchitectureSection: React.FC = () => {
 
           <div className="lg:col-span-7 lg:pl-12 lg:pt-8">
             <p className="font-serif text-lg sm:text-xl text-[#262626]/80 leading-relaxed max-w-2xl mb-4">
-              Engineered specifically for the Google Cloud & Hack2Skill APAC GenAI Academy Ideathon Challenge. 
+              Engineered as a neuroscience-grounded journaling and somatic reset companion. 
               Ana combines cutting-edge Google GenAI intelligence with a zero-trust enterprise security perimeter.
             </p>
             <div className="flex flex-wrap items-center gap-3 text-xs font-mono text-[#3D4028]">

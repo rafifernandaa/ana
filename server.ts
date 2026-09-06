@@ -13,6 +13,94 @@ const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
+// 2. Defensive Security Headers Middleware (OWASP A05: Security Misconfiguration)
+app.use((_req: Request, res: Response, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("X-XSS-Protection", "0");
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+  next();
+});
+
+// 3. In-Memory Defense: Sliding-Window Rate Limiting (OWASP A04 / LLM04)
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+function createRateLimiter(options: { windowMs: number; maxRequests: number; endpointName?: string }) {
+  const store = new Map<string, RateLimitEntry>();
+
+  // Cleanup expired entries periodically (every 5 minutes)
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, entry] of store.entries()) {
+      if (now > entry.resetAt) {
+        store.delete(key);
+      }
+    }
+  }, 5 * 60 * 1000);
+  if (cleanupTimer.unref) cleanupTimer.unref();
+
+  return (req: Request, res: Response, next: () => void) => {
+    const forwarded = req.headers["x-forwarded-for"];
+    const clientIp = (typeof forwarded === "string" ? forwarded.split(",")[0].trim() : null) ||
+      req.socket?.remoteAddress ||
+      "127.0.0.1";
+
+    const now = Date.now();
+    let record = store.get(clientIp);
+
+    if (!record || now > record.resetAt) {
+      record = { count: 1, resetAt: now + options.windowMs };
+      store.set(clientIp, record);
+    } else {
+      record.count += 1;
+    }
+
+    const remaining = Math.max(0, options.maxRequests - record.count);
+    res.setHeader("X-RateLimit-Limit", options.maxRequests);
+    res.setHeader("X-RateLimit-Remaining", remaining);
+    res.setHeader("X-RateLimit-Reset", Math.ceil(record.resetAt / 1000));
+
+    if (record.count > options.maxRequests) {
+      const retryAfterSec = Math.ceil((record.resetAt - now) / 1000);
+      res.setHeader("Retry-After", retryAfterSec);
+      logStructured("WARNING", `Rate limit exceeded on ${options.endpointName || "API"}`, {
+        clientIp,
+        endpoint: req.path,
+        limit: options.maxRequests,
+      });
+      return res.status(429).json({
+        error: "Too many requests. Please slow down and try again shortly.",
+        retryAfter: retryAfterSec,
+      });
+    }
+
+    next();
+  };
+}
+
+// Apply general API limiter (120 req/min)
+const generalApiLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 120,
+  endpointName: "General API",
+});
+app.use("/api/", generalApiLimiter);
+
+// Apply dedicated LLM / Dispatch limiter (40 req/min) to prevent model exhaustion
+const expensiveOperationLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  maxRequests: 40,
+  endpointName: "Gemini / Email Dispatch",
+});
+app.use("/api/gemini/", expensiveOperationLimiter);
+app.use("/api/notifications/send-email", expensiveOperationLimiter);
+
 // Fallback ladder definition for resilient Gemini operations (Gemini 3.6 or higher)
 const FALLBACK_MODELS = [
   "gemini-3.8-flash",
@@ -67,12 +155,12 @@ app.get("/api/health", (_req: Request, res: Response) => {
 // API: Multi-turn Chat / Interactive Reflection with Gemini
 app.post("/api/gemini/chat", async (req: Request, res: Response) => {
   try {
-    // Defensive payload ingestion with null-safe destructuring
+    // Defensive payload ingestion with null-safe destructuring and length bounds
     const body = (req.body && typeof req.body === "object") ? req.body : {};
     const messages = Array.isArray(body.messages) ? body.messages : [];
-    const context = typeof body.context === "string" ? body.context : "";
+    const context = (typeof body.context === "string" ? body.context : "").slice(0, 30000);
     const mode = typeof body.mode === "string" ? body.mode : "reflect";
-    const customInstruction = typeof body.systemInstruction === "string" ? body.systemInstruction : "";
+    const customInstruction = (typeof body.systemInstruction === "string" ? body.systemInstruction : "").slice(0, 2000);
 
     if (messages.length === 0) {
       return res.status(400).json({ error: "At least one message is required." });
@@ -102,10 +190,10 @@ Guidelines:
       systemPrompt += `\n\n--- Current Journal Entry Context ---\n${context}\n----------------------------------`;
     }
 
-    // Format conversation history for Gemini API
-    const formattedContents = messages.map((m: any) => ({
+    // Format conversation history for Gemini API (bounded to last 50 turns, 20k chars per turn)
+    const formattedContents = messages.slice(-50).map((m: any) => ({
       role: m.role === "user" ? "user" : "model",
-      parts: [{ text: String(m.content || "") }],
+      parts: [{ text: String(m.content || "").slice(0, 20000) }],
     }));
 
     const result = await generateContentWithFallback({
@@ -124,9 +212,9 @@ Guidelines:
       usageMetadata: result.response.usageMetadata || {},
     });
   } catch (error: any) {
-    console.error("Gemini Chat API Error:", error);
+    logStructured("ERROR", "Gemini Chat API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to generate reflection response from Gemini.",
+      error: "Failed to generate reflection response from Gemini. Please try again.",
     });
   }
 });
@@ -135,9 +223,9 @@ Guidelines:
 app.post("/api/gemini/summarize", async (req: Request, res: Response) => {
   try {
     const body = (req.body && typeof req.body === "object") ? req.body : {};
-    const content = typeof body.content === "string" ? body.content : "";
-    const title = typeof body.title === "string" ? body.title : "Untitled Entry";
-    const history = Array.isArray(body.conversationHistory) ? body.conversationHistory : [];
+    const content = (typeof body.content === "string" ? body.content : "").slice(0, 30000);
+    const title = (typeof body.title === "string" ? body.title : "Untitled Entry").slice(0, 200);
+    const history = (Array.isArray(body.conversationHistory) ? body.conversationHistory : []).slice(-30);
 
     if (!content.trim() && history.length === 0) {
       return res.status(400).json({ error: "Content or conversation history is required for summarization." });
@@ -197,9 +285,9 @@ Generate a structured reflection summary in valid JSON format matching this sche
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Summarize API Error:", error);
+    logStructured("ERROR", "Gemini Summarize API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to generate summary from Gemini.",
+      error: "Failed to generate summary from Gemini. Please try again.",
     });
   }
 });
@@ -319,9 +407,9 @@ Please analyze the writing and produce JSON with:
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Reframe API Error:", error);
+    logStructured("ERROR", "Gemini Reframe API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to process cognitive reframe.",
+      error: "Failed to process cognitive reframe. Please try again.",
     });
   }
 });
@@ -330,7 +418,7 @@ Please analyze the writing and produce JSON with:
 app.post("/api/gemini/prune-loop", async (req: Request, res: Response) => {
   try {
     const body = (req.body && typeof req.body === "object") ? req.body : {};
-    const distortionText = typeof body.distortionText === "string" ? body.distortionText : "";
+    const distortionText = (typeof body.distortionText === "string" ? body.distortionText : "").slice(0, 30000);
 
     if (!distortionText.trim()) {
       return res.status(400).json({ error: "Thought text is required to untangle thought patterns." });
@@ -393,9 +481,9 @@ ${distortionText}
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Untangle Thought API Error:", error);
+    logStructured("ERROR", "Gemini Untangle Thought API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to process thought untangling.",
+      error: "Failed to process thought untangling. Please try again.",
     });
   }
 });
@@ -404,7 +492,7 @@ ${distortionText}
 app.post("/api/gemini/extract-glimmers", async (req: Request, res: Response) => {
   try {
     const body = (req.body && typeof req.body === "object") ? req.body : {};
-    const text = typeof body.text === "string" ? body.text : "";
+    const text = (typeof body.text === "string" ? body.text : "").slice(0, 30000);
 
     if (!text.trim()) {
       return res.status(400).json({ error: "Text content is required to mine glimmers." });
@@ -464,9 +552,9 @@ ${text}
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Extract Glimmers API Error:", error);
+    logStructured("ERROR", "Gemini Extract Glimmers API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to extract glimmers.",
+      error: "Failed to extract glimmers. Please try again.",
     });
   }
 });
@@ -478,10 +566,10 @@ app.post("/api/gemini/circadian-coach", async (req: Request, res: Response) => {
     const phase = typeof body.phase === "string" ? body.phase : "dawn_morning";
     const sleepQuality = typeof body.sleepQuality === "string" ? body.sleepQuality : "adequate";
     const energyLevel = typeof body.energyLevel === "number" ? body.energyLevel : 3;
-    const morningIntention = typeof body.morningIntention === "string" ? body.morningIntention : "";
-    const anticipatedFriction = typeof body.anticipatedFriction === "string" ? body.anticipatedFriction : "";
-    const recentMorningIntention = typeof body.recentMorningIntention === "string" ? body.recentMorningIntention : "";
-    const journalContent = typeof body.journalContent === "string" ? body.journalContent : "";
+    const morningIntention = (typeof body.morningIntention === "string" ? body.morningIntention : "").slice(0, 1000);
+    const anticipatedFriction = (typeof body.anticipatedFriction === "string" ? body.anticipatedFriction : "").slice(0, 1000);
+    const recentMorningIntention = (typeof body.recentMorningIntention === "string" ? body.recentMorningIntention : "").slice(0, 1000);
+    const journalContent = (typeof body.journalContent === "string" ? body.journalContent : "").slice(0, 30000);
 
     const systemPrompt = `You are a supportive, grounded Circadian Journaling & Reflection Coach.
 Your purpose is to help the user align their reflection practice with their natural biological rhythm across the day's key boundaries:
@@ -560,9 +648,9 @@ Please return JSON with:
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Circadian Coach API Error:", error);
+    logStructured("ERROR", "Gemini Circadian Coach API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to generate circadian coaching guidance.",
+      error: "Failed to generate circadian coaching guidance. Please try again.",
     });
   }
 });
@@ -657,9 +745,9 @@ Please deconstruct this emotional vent into objective facts vs. interpretations,
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Psychiatric Decenter API Error:", error);
+    logStructured("ERROR", "Gemini Psychiatric Decenter API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to deconstruct and decenter venting text.",
+      error: "Failed to deconstruct and decenter venting text. Please try again.",
     });
   }
 });
@@ -814,9 +902,9 @@ Please compute the empirical telemetry and return JSON matching the schema.`;
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Empirical Telemetry API Error:", error);
+    logStructured("ERROR", "Gemini Empirical Telemetry API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to extract empirical telemetry from journal prose.",
+      error: "Failed to extract empirical telemetry. Please try again.",
     });
   }
 });
@@ -913,9 +1001,9 @@ Please generate the longitudinal neuroplastic synthesis.`;
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Gemini Longitudinal Synthesis API Error:", error);
+    logStructured("ERROR", "Gemini Longitudinal Synthesis API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to generate longitudinal neuroplastic synthesis.",
+      error: "Failed to generate longitudinal neuroplastic synthesis. Please try again.",
     });
   }
 });
@@ -1244,7 +1332,7 @@ function createCircadianEmailHtml(userName: string, hoursInactive: number, phase
             <tr>
               <td style="padding: 16px 24px; border-top: 1px solid #3D4028; background-color: #141414; font-size: 10.5px; color: #737373; font-family: monospace; text-align: center; line-height: 1.6;">
                 ${recipientEmail ? `Authenticated Account: <strong style="color: #A3A649;">${recipientEmail}</strong> • ` : ""}Last Activity: <strong style="color: #ffffff;">${hoursInactive.toFixed(1)}h ago</strong><br/>
-                Engineered for Google Cloud &amp; Hack2Skill Ideathon Challenge Cohort 3<br/>
+                Ana // Neuroscience-Informed Journaling &amp; Somatic Reset System<br/>
                 Dispatched via Google Cloud Scheduler &amp; Cloud Run (asia-southeast1) • Synced with Cloud Firestore (us-west1)
               </td>
             </tr>
@@ -1445,6 +1533,58 @@ app.post("/api/notifications/send-email", async (req: Request, res: Response) =>
   }
 });
 
+/**
+ * Strict SSRF Defense: Validates Google Apps Script Webhook URLs.
+ * Prevents SSRF attacks to internal Cloud Run / GCP metadata (169.254.169.254),
+ * localhost, or private VPC subnets.
+ */
+function validateSheetsWebhookUrl(urlStr: string): { valid: boolean; reason?: string } {
+  if (!urlStr || typeof urlStr !== "string") {
+    return { valid: false, reason: "Webhook URL must be a non-empty string." };
+  }
+
+  try {
+    const parsed = new URL(urlStr.trim());
+
+    // 1. Enforce HTTPS only (no plaintext HTTP or other schemes)
+    if (parsed.protocol !== "https:") {
+      return { valid: false, reason: "Webhook destination must use secure HTTPS protocol." };
+    }
+
+    const hostname = parsed.hostname.toLowerCase();
+
+    // 2. Reject internal IPs, loopback, link-local, and cloud metadata
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "169.254.169.254" ||
+      hostname.endsWith(".internal") ||
+      hostname.endsWith(".local") ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^[0-9.]+$/.test(hostname)
+    ) {
+      return { valid: false, reason: "Internal or private IP destinations are strictly prohibited." };
+    }
+
+    // 3. Whitelist Google Apps Script domains
+    const allowedHosts = ["script.google.com", "script.googleusercontent.com"];
+    const isAllowed = allowedHosts.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`));
+    if (!isAllowed) {
+      return {
+        valid: false,
+        reason: "Webhook destination must be a valid Google Apps Script endpoint (https://script.google.com/macros/s/...).",
+      };
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, reason: "Malformed or invalid webhook URL structure." };
+  }
+}
+
 // API: Google Sheets Synchronization & Webhook Proxy
 app.post("/api/sheets/sync", async (req: Request, res: Response) => {
   try {
@@ -1457,11 +1597,23 @@ app.post("/api/sheets/sync", async (req: Request, res: Response) => {
     });
 
     // Option A: Relay directly to user's Google Apps Script Webhook
-    if (webhookUrl && typeof webhookUrl === "string" && webhookUrl.startsWith("http")) {
+    if (webhookUrl && typeof webhookUrl === "string") {
+      const urlValidation = validateSheetsWebhookUrl(webhookUrl);
+      if (!urlValidation.valid) {
+        logStructured("WARNING", "Rejected unsafe webhookUrl in /api/sheets/sync", {
+          providedUrl: webhookUrl.slice(0, 100),
+          reason: urlValidation.reason,
+        });
+        return res.status(400).json({
+          error: `Security Validation Failed: ${urlValidation.reason}`,
+        });
+      }
+
       try {
         const webhookRes = await fetch(webhookUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(10000),
           body: JSON.stringify({
             action: "sync",
             entries,
@@ -1733,8 +1885,8 @@ ${autoRedact ? "4. SENSITIVE DATA PROTECTION (Google Cloud DLP): Mask all specif
 app.post("/api/gemini/narrative-decenter", async (req: Request, res: Response) => {
   try {
     const body = (req.body && typeof req.body === "object") ? req.body : {};
-    const content = typeof body.content === "string" ? body.content : "";
-    const title = typeof body.title === "string" ? body.title : "Reflection";
+    const content = (typeof body.content === "string" ? body.content : "").slice(0, 30000);
+    const title = (typeof body.title === "string" ? body.title : "Reflection").slice(0, 200);
 
     if (!content.trim()) {
       return res.status(400).json({ error: "Content is required to generate narrative perspective." });
@@ -1791,9 +1943,9 @@ Structure the JSON output exactly with:
       modelUsed: result.modelUsed,
     });
   } catch (error: any) {
-    console.error("Narrative Decenter API Error:", error);
+    logStructured("ERROR", "Narrative Decenter API Error", { error: error?.message });
     return res.status(500).json({
-      error: error?.message || "Failed to generate perspective shift.",
+      error: "Failed to generate perspective shift. Please try again.",
     });
   }
 });
