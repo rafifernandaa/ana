@@ -669,7 +669,7 @@ export const StudioWorkspace: React.FC<StudioWorkspaceProps> = ({
                       <Camera className="w-3 h-3" />
                       ATTACHED HANDWRITTEN PAGES ({currentEntry.attachedHandwrittenImages.length})
                     </span>
-                    <span className="font-mono text-[9px] text-[#8C8C8C]">gs://project-21ea57f4-102b-432a-98f.firebasestorage.app/handwritten/</span>
+                    <span className="font-mono text-[9px] text-[#8C8C8C]">gs://ai-studio-bucket-118399207989-asia-southeast1/handwritten/</span>
                   </div>
                   <div className="flex items-center gap-2 overflow-x-auto pb-1">
                     {currentEntry.attachedHandwrittenImages.map((img, idx) => (

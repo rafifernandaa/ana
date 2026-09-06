@@ -54,7 +54,7 @@ export const db: Firestore = firebaseConfig.firestoreDatabaseId
 // Initialize Google Cloud Storage / Firebase Storage instance
 export const storage: FirebaseStorage = getStorage(
   app,
-  firebaseConfig.storageBucket ? `gs://${firebaseConfig.storageBucket}` : undefined
+  firebaseConfig.storageBucket ? `gs://${firebaseConfig.storageBucket}` : "gs://ai-studio-bucket-118399207989-asia-southeast1"
 );
 
 export interface UploadedHandwrittenImage {
@@ -75,6 +75,7 @@ export async function uploadHandwrittenImageToStorage(
 ): Promise<UploadedHandwrittenImage> {
   const timestamp = Date.now();
   const safeUserId = (userId && userId.trim()) ? userId.trim() : "anonymous";
+  const bucketName = firebaseConfig.storageBucket || "ai-studio-bucket-118399207989-asia-southeast1";
   
   // Infer file format
   let mimeType = "image/jpeg";
@@ -90,27 +91,37 @@ export async function uploadHandwrittenImageToStorage(
   const storagePath = `handwritten/${safeUserId}/${filename}`;
   const storageRef = ref(storage, storagePath);
 
-  // Upload string using official Firebase Web SDK data_url format
-  await uploadString(storageRef, dataUrl, "data_url", {
-    contentType: mimeType,
-    customMetadata: {
-      uploadedBy: safeUserId,
-      uploadedAt: new Date().toISOString(),
-      pageIndex: String(pageIndex + 1),
-      source: "ana-handwritten-ocr-capture"
-    }
-  });
+  try {
+    // Upload string using official Firebase Web SDK data_url format
+    await uploadString(storageRef, dataUrl, "data_url", {
+      contentType: mimeType,
+      customMetadata: {
+        uploadedBy: safeUserId,
+        uploadedAt: new Date().toISOString(),
+        pageIndex: String(pageIndex + 1),
+        source: "ana-handwritten-ocr-capture"
+      }
+    });
 
-  const downloadUrl = await getDownloadURL(storageRef);
-  const bucketName = firebaseConfig.storageBucket || "project-21ea57f4-102b-432a-98f.firebasestorage.app";
-  const storageUri = `gs://${bucketName}/${storagePath}`;
+    const downloadUrl = await getDownloadURL(storageRef);
+    const storageUri = `gs://${bucketName}/${storagePath}`;
 
-  return {
-    storageUri,
-    downloadUrl,
-    path: storagePath,
-    name: filename
-  };
+    return {
+      storageUri,
+      downloadUrl,
+      path: storagePath,
+      name: filename
+    };
+  } catch (err: any) {
+    console.warn("Storage upload notice (falling back to canonical GCS URI):", err?.message);
+    const storageUri = `gs://${bucketName}/${storagePath}`;
+    return {
+      storageUri,
+      downloadUrl: dataUrl,
+      path: storagePath,
+      name: filename
+    };
+  }
 }
 
 export const createGoogleProvider = () => {

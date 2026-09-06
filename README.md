@@ -52,70 +52,92 @@ Ana implements a **Zero-Client-Key Architecture**: the browser client never rece
 
 ```mermaid
 flowchart TD
-    subgraph Client["Client Tier (Browser)"]
-        UI["React 19 + TypeScript + Tailwind CSS"]
-        Three["Three.js 3D Somatic Reset & Chronicle"]
-        AuthClient["Firebase Auth Client (Google OAuth)"]
+    subgraph ClientTier["Client Tier (Browser / PWA)"]
+        UI["React 19 + TypeScript + Tailwind CSS\n(Neuro-Cognitive Studio)"]
+        HW["Handwritten Note Capture & OCR Modal\n(Camera / File Drag-and-Drop)"]
+        Three["Three.js 3D Somatic Reset Room\n(Interactive Tension Mapper)"]
+        AuthClient["Firebase Auth Client\n(Google Sign-In OAuth)"]
     end
 
-    subgraph GoogleCloud["Google Cloud Platform"]
-        subgraph CloudRun["Cloud Run (Serverless Container)"]
-            Express["Node.js 24 + Express Backend Proxy"]
-            DLP["PII / DLP Sanitizer"]
-            Fallbacks["Gemini Resilient Fallback Ladder"]
-            EmailEngine["Circadian Inactivity Engine"]
+    subgraph GoogleCloudPlatform["Google Cloud Platform (asia-southeast1)"]
+        subgraph CloudRun["Google Cloud Run (Serverless Container)"]
+            Express["Express API Gateway & Defensive Security Layer\n(Rate Limiting, 10MB Body Bounds, Zero-Client Keys)"]
+            GCSStreamer["Cloud Storage Binary Stream Engine\n(Direct Object Uploader)"]
+            DLPEngine["Sensitive Data Protection (Cloud DLP)\n(7 infoTypes Redaction & Surrogate Tokenizer)"]
+            GeminiProxy["Resilient Gemini Proxy & Fallback Ladder\n(Structured JSON Schema Validator)"]
+            CircadianEngine["Circadian Inactivity Dispatcher\n(Loop Closure Narrative Generator)"]
         end
 
-        subgraph SecuritySecrets["Identity & Secret Management"]
-            SecretMgr["Google Cloud Secret Manager\n(GEMINI_API_KEY, RESEND_API_KEY)"]
-            Scheduler["Google Cloud Scheduler\n(Periodic Circadian Cron)"]
-            Logging["Google Cloud Logging\n(Structured JSON Telemetry)"]
+        subgraph StorageLayer["Google Cloud Storage"]
+            GCSBucket[("Cloud Storage Bucket\ngs://ai-studio-bucket-118399207989-asia-southeast1\n/handwritten/{userId}/{imageId}.jpg")]
         end
 
-        subgraph GoogleAI["Google AI Studio / Gemini API"]
-            Gemini38["gemini-3.8-flash (Primary Engine)"]
-            Gemini37["gemini-3.7-flash (Fallback Layer 1)"]
-            Gemini36["gemini-3.6-flash (Fallback Layer 2)"]
-            GeminiVision["Multimodal Vision (Handwritten OCR)"]
+        subgraph DatabaseLayer["Firebase & Cloud Firestore"]
+            FirebaseAuth["Firebase Authentication\n(Token Verification & Cryptographic UID)"]
+            FirestoreDB[("Cloud Firestore\nIsolated Collections: /users/{userId}/*\n(entries, sessions, glimmers, pruned_loops)")]
+            SecurityRules{"firestore.rules\n(request.auth.uid == userId)"}
         end
 
-        subgraph FirebaseCloud["Firebase & Cloud Firestore"]
-            FirebaseAuth["Firebase Authentication (OAuth Token Validation)"]
-            FirestoreDB["Cloud Firestore (Strict Owner Isolation)"]
-            Rules["firestore.rules (request.auth.uid == userId)"]
+        subgraph ManagementTier["Security, Scheduling & Observability"]
+            SecretManager["Google Cloud Secret Manager\n(GEMINI_API_KEY, RESEND_API_KEY)"]
+            Scheduler["Google Cloud Scheduler\n(Authenticated Cron: 0 */4 * * *)"]
+            CloudLogging["Google Cloud Logging\n(Structured JSON Audit Trail & Latency Metrics)"]
+        end
+
+        subgraph GeminiAI["Google AI Studio / Gemini Models"]
+            Gemini38["gemini-3.8-flash\n(Primary Engine: Reflection, Decentering, Affect Labeling)"]
+            Gemini37["gemini-3.7-flash\n(Failover Tier 1: Multi-Step Cognitive Unwinding)"]
+            Gemini36["gemini-3.6-flash\n(Failover Tier 2: Base Multimodal Engine)"]
+            GeminiVision["Gemini Multimodal Vision\n(Verbatim Paleographic OCR Transcription)"]
         end
     end
 
-    subgraph External["External Services"]
-        ResendAPI["Resend / SendGrid REST API"]
-        SheetsAPI["Google Sheets API v4 + Apps Script"]
+    subgraph ExternalServices["External Services"]
+        ResendAPI["Resend REST API\n(Transactional Inactivity Prompts)"]
+        SheetsAPI["Google Sheets API v4 / Apps Script\n(Longitudinal Empirical Telemetry Sync)"]
     end
 
-    UI -->|"HTTPS REST API (/api/*)"| Express
-    AuthClient -->|"Google Sign-In"| FirebaseAuth
-    FirebaseAuth -->|"Validated UID"| FirestoreDB
-    Express -->|"Owner Scoped Data Queries"| FirestoreDB
-    FirestoreDB -.->|"Enforced by"| Rules
-    SecretMgr -->|"Injected at Runtime"| CloudRun
+    %% Client Interactions
+    UI -->|"HTTPS REST (/api/*)"| Express
+    HW -->|"Base64 Image Payload"| Express
+    AuthClient -->|"Google Identity Token"| FirebaseAuth
+    FirebaseAuth -->|"Authenticated UID Scoping"| FirestoreDB
+    Express -->|"Owner-Bound Queries"| FirestoreDB
+    FirestoreDB -.->|"Access Control Enforced by"| SecurityRules
+
+    %% Storage & DLP Data Flow
+    Express -->|"1. Binary Image Stream"| GCSStreamer
+    GCSStreamer -->|"Persists JPEG/PNG"| GCSBucket
+    GCSBucket -.->|"Canonical gs:// URI"| Express
+    Express -->|"2. Image Parts for Paleography"| GeminiVision
+    GeminiVision -->|"Raw Verbatim Transcription"| Express
+    Express -->|"3. PII & Sensitive Pattern Inspection"| DLPEngine
+    DLPEngine -->|"Redacted Text with Surrogate Tokens"| Express
+    Express -->|"4. Cleaned Reflection & Storage References"| UI
+
+    %% Gemini Model Ladder
+    Express -->|"Cognitive Reflection Prompt"| GeminiProxy
+    GeminiProxy -->|"Primary Query"| Gemini38
+    Gemini38 -.->|"Failover on 429/503"| Gemini37
+    Gemini37 -.->|"Failover on 429/503"| Gemini36
+    GeminiProxy -->|"Structured JSON Response"| Express
+
+    %% Infrastructure & External
+    SecretManager -->|"Injected at Runtime (--set-secrets)"| CloudRun
     Scheduler -->|"POST /api/scheduler/check-inactivity"| Express
-    Express -->|"Structured JSON Observability"| Logging
-    Express -->|"Zero-Client-Key SDK Proxy"| Fallbacks
-    Fallbacks --> Gemini38
-    Gemini38 -.->|"Failover"| Gemini37
-    Gemini37 -.->|"Failover"| Gemini36
-    Express -->|"Image Buffer"| GeminiVision
-    EmailEngine -->|"Transactional Dispatch"| ResendAPI
-    Express -->|"Telemetry Sync"| SheetsAPI
+    Express -->|"Structured Telemetry Logs"| CloudLogging
+    CircadianEngine -->|"Loop Closure Emails"| ResendAPI
+    Express -->|"Validated Webhook Export (SSRF-Guarded)"| SheetsAPI
 ```
 
 ---
 
 ## ☁️ Google Cloud & Google Services Integration
 
-Ana is engineered to deeply leverage Google's managed cloud and AI ecosystem:
+Ana is engineered to deeply leverage Google's managed cloud, storage, and AI ecosystem:
 
 ### 1. Google Gemini & Google AI Studio
-- **What We Built**: The cognitive engine powering all emotional labeling, psychiatric decentering, synaptic pruning, glimmer discovery, and OCR transcription.
+- **What We Built**: The cognitive engine powering all emotional labeling, psychiatric decentering, synaptic pruning, glimmer discovery, and multimodal OCR transcription.
 - **How It's Used**: Powered by `@google/genai` on Node.js 24 with custom system instructions (Constitution) enforcing empathetic, non-diagnostic boundaries.
 - **Resilient Fallback Ladder**:
   - Primary: `gemini-3.8-flash`
@@ -123,11 +145,40 @@ Ana is engineered to deeply leverage Google's managed cloud and AI ecosystem:
   - Fallback 2: `gemini-3.6-flash`
 - **Structured Schema Outputs**: All responses use strict JSON Schema mode with defensive server-side parsing.
 
-### 2. Firebase Authentication
+### 2. Google Cloud Storage (GCS)
+- **What We Built**: Persistent, regional cloud object storage for handwritten notebook spreads, paper journal photos, and physical sketches.
+- **Canonical Bucket**: `gs://ai-studio-bucket-118399207989-asia-southeast1`
+- **Storage Hierarchy**: Stored under isolated, user-partitioned paths:
+  ```
+  gs://ai-studio-bucket-118399207989-asia-southeast1/handwritten/{userId}/{imageId}.jpg
+  ```
+- **How It's Used**: 
+  - Users capture or upload paper journal photos in the **Handwritten OCR Modal**.
+  - The Express backend parses the image payload and directly streams binary buffers to the Google Cloud Storage JSON API (`POST https://storage.googleapis.com/upload/storage/v1/b/.../o?uploadType=media`).
+  - Returns canonical `gs://...` URIs alongside public media links for long-term archival.
+- **IAM & Cloud Run Permissions**: 
+  - In production, Cloud Run's default compute service account (`${PROJECT_NUMBER}-compute@developer.gserviceaccount.com`) automatically possesses write access to project buckets.
+  - To test direct writes in the development sandbox prior to publishing, grant `roles/storage.objectAdmin` to `ais-sandbox@ais-asia-southeast1-6b362d59ea.iam.gserviceaccount.com`.
+
+### 3. Google Cloud Sensitive Data Protection (Cloud DLP)
+- **What We Built**: Automated privacy and PII redaction pipeline protecting sensitive emotional, financial, and personal details in journal entries and transcribed notebook photos.
+- **How It's Used**: 
+  - Analyzes raw OCR transcriptions and user entries across 7 core infoTypes before data is persisted to Cloud Firestore or displayed in the UI:
+    - `PERSON_NAME` — Identifies personal names via title detection, introductory phrases, and clinician roles.
+    - `EMAIL_ADDRESS` — Standard RFC 5322 regex sanitization.
+    - `PHONE_NUMBER` — North American, international, and mobile dialing patterns.
+    - `CREDIT_CARD_NUMBER` — Luhn-compatible payment card numbers.
+    - `US_SOCIAL_SECURITY_NUMBER` — 9-digit government identifier patterns.
+    - `PHYSICIAN_PROVIDER` — Names following therapist, psychiatrist, counselor, or physician titles.
+    - `API_KEY_OR_SECRET` — High-entropy secret patterns (`AIzaSy...`, `sk-...`, `re_...`).
+  - **Surrogate Tokenization**: Replaces detected infoTypes with non-reversible surrogate tokens (e.g. `[REDACTED_NAME]`, `[REDACTED_EMAIL]`, `[REDACTED_PHONE]`) to preserve semantic coherence for Gemini without exposing raw private identifiers.
+  - **Endpoints**: Seamlessly integrated into `/api/journal/handwritten-ocr` (enabled by default with toggle) and accessible as a standalone utility via `POST /api/privacy/redact-dlp`.
+
+### 4. Firebase Authentication
 - **What We Built**: Zero-friction Google OAuth identity verification.
 - **How It's Used**: Authenticates users and mints cryptographic ID tokens. The authenticated `uid` serves as the strict security boundary for all downstream database subcollections.
 
-### 3. Google Cloud Firestore
+### 5. Google Cloud Firestore
 - **What We Built**: Persistent, real-time NoSQL storage for all user reflections, somatic states, pruned thoughts, and longitudinal telemetry.
 - **How It's Used**: Structured under isolated subcollections:
   - `/users/{userId}/entries` — Journal reflections & empirical telemetry
@@ -138,19 +189,19 @@ Ana is engineered to deeply leverage Google's managed cloud and AI ecosystem:
   - `/users/{userId}/circadian_entries` — Day boundary check-ins
 - **Security Rules**: Guarded by `firestore.rules` enforcing `request.auth.uid == userId`.
 
-### 4. Google Cloud Run
+### 6. Google Cloud Run
 - **What We Built**: The containerized full-stack deployment serving the React 19 single-page application and the Express API gateway.
 - **How It's Used**: Hosted on managed Cloud Run (`asia-southeast1`). Provides auto-scaling from 0 to peak, TLS termination, request deserialization with strict 10MB limits, and complete proxy isolation so no API keys reach the client.
 
-### 5. Google Cloud Secret Manager
+### 7. Google Cloud Secret Manager
 - **What We Built**: Secure credential storage protecting production keys.
 - **How It's Used**: Stores `GEMINI_API_KEY` and `RESEND_API_KEY`. Secrets are dynamically bound into Cloud Run environment variables at runtime via `--set-secrets`, preventing secrets from ever touching source control or container images.
 
-### 6. Google Cloud Scheduler
+### 8. Google Cloud Scheduler
 - **What We Built**: Automated circadian loop closure notification triggers.
 - **How It's Used**: An authenticated serverless HTTP cron job (`0 */4 * * *`) invoking `/api/scheduler/check-inactivity` on Cloud Run to evaluate user elapsed time and dispatch loop-closure prompts.
 
-### 7. Google Cloud Logging
+### 9. Google Cloud Logging
 - **What We Built**: Centralized observability and runtime audit trail.
 - **How It's Used**: Emits structured JSON logs containing request IDs, latency metrics, fallback model transitions, and notification dispatch statuses.
 
