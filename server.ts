@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
 import { GoogleGenAI, Type } from "@google/genai";
 import { createServer as createViteServer } from "vite";
@@ -108,13 +109,89 @@ const FALLBACK_MODELS = [
   "gemini-3.6-flash",
 ];
 
-// Lazy initialization of Gemini client
-function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
-    throw new Error("GEMINI_API_KEY is not configured in environment variables or secrets.");
+// ============================================================================
+// Google Cloud Architecture: Secret Manager Resolution Engine
+// Resolves secrets across 3 enterprise Google Cloud mechanisms:
+// 1. Cloud Run Environment Variable Binding (--set-secrets GEMINI_API_KEY=...)
+// 2. Cloud Run Mounted Secret Volumes (/secrets/GEMINI_API_KEY or /secrets/gemini-api-key)
+// 3. Local .env file fallback for development
+// ============================================================================
+function sanitizeSecret(val?: string | null): string {
+  if (!val || typeof val !== "string") return "";
+  return val
+    .trim()
+    .replace(/[\r\n\t]/g, "")
+    .replace(/^bearer\s+/i, "")
+    .replace(/^["']|["']$/g, "")
+    .trim();
+}
+
+interface SecretResolutionResult {
+  value: string;
+  source: "secret_manager_env" | "secret_manager_volume" | "local_env" | "none";
+}
+
+const secretResolutionCache = new Map<string, SecretResolutionResult>();
+
+function resolveSecret(secretName: string): SecretResolutionResult {
+  if (secretResolutionCache.has(secretName)) {
+    return secretResolutionCache.get(secretName)!;
   }
-  return new GoogleGenAI({ apiKey });
+
+  // 1. Check process.env (Google Cloud Run standard Secret Manager binding)
+  const envVal = sanitizeSecret(process.env[secretName]);
+  if (envVal && envVal !== "MY_GEMINI_API_KEY" && envVal !== "re_dummy" && envVal !== "SG.dummy") {
+    const isCloudRun = !!process.env.K_SERVICE;
+    const result: SecretResolutionResult = {
+      value: envVal,
+      source: isCloudRun ? "secret_manager_env" : "local_env",
+    };
+    secretResolutionCache.set(secretName, result);
+    return result;
+  }
+
+  // 2. Check Cloud Run Mounted Secret Volumes (/secrets/<NAME>, /secrets/<name>, /secrets/<name-with-dashes>)
+  const candidateVolumePaths = [
+    path.join("/secrets", secretName),
+    path.join("/secrets", secretName.toLowerCase()),
+    path.join("/secrets", secretName.toLowerCase().replace(/_/g, "-")),
+  ];
+
+  for (const volumePath of candidateVolumePaths) {
+    try {
+      if (fs.existsSync(volumePath)) {
+        const fileContent = fs.readFileSync(volumePath, "utf-8");
+        const cleanVal = sanitizeSecret(fileContent);
+        if (cleanVal) {
+          logStructured("INFO", `Loaded secret ${secretName} from Cloud Run Secret Manager volume mount`, {
+            path: volumePath,
+            source: "secret_manager_volume",
+          });
+          const result: SecretResolutionResult = {
+            value: cleanVal,
+            source: "secret_manager_volume",
+          };
+          secretResolutionCache.set(secretName, result);
+          return result;
+        }
+      }
+    } catch {
+      // Volume mount check non-fatal
+    }
+  }
+
+  return { value: "", source: "none" };
+}
+
+// Lazy initialization of Gemini client via Secret Manager
+function getGeminiClient(): GoogleGenAI {
+  const secret = resolveSecret("GEMINI_API_KEY");
+  if (!secret.value) {
+    throw new Error(
+      "GEMINI_API_KEY is not configured. Please supply it via Google Cloud Secret Manager (--set-secrets GEMINI_API_KEY=...) or set GEMINI_API_KEY in environment variables."
+    );
+  }
+  return new GoogleGenAI({ apiKey: secret.value });
 }
 
 // Resilient Model Fallback Helper
@@ -143,12 +220,58 @@ async function generateContentWithFallback(params: {
   throw lastError || new Error("All models in the resilient fallback ladder failed.");
 }
 
-// API Health Check
+// API Health Check & Cloud Architecture Status
 app.get("/api/health", (_req: Request, res: Response) => {
+  const geminiSecret = resolveSecret("GEMINI_API_KEY");
+  const resendSecret = resolveSecret("RESEND_API_KEY");
+  const sendgridSecret = resolveSecret("SENDGRID_API_KEY");
+
   res.json({
     status: "ok",
     timestamp: new Date().toISOString(),
-    geminiConfigured: !!(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY"),
+    cloudRunService: process.env.K_SERVICE || "Ana",
+    secretManager: {
+      geminiConfigured: !!geminiSecret.value,
+      geminiSource: geminiSecret.source,
+      emailConfigured: !!(resendSecret.value || sendgridSecret.value),
+      emailSource: resendSecret.source !== "none" ? resendSecret.source : sendgridSecret.source,
+    },
+    geminiConfigured: !!geminiSecret.value,
+  });
+});
+
+// API: Google Cloud Secret Manager Diagnostics Endpoint (Zero Key Exposure)
+app.get("/api/cloud/secret-manager-status", (_req: Request, res: Response) => {
+  const geminiSecret = resolveSecret("GEMINI_API_KEY");
+  const resendSecret = resolveSecret("RESEND_API_KEY");
+  const sendgridSecret = resolveSecret("SENDGRID_API_KEY");
+
+  return res.json({
+    status: "healthy",
+    cloudEnvironment: {
+      isCloudRun: !!process.env.K_SERVICE,
+      serviceName: process.env.K_SERVICE || "Ana",
+      revision: process.env.K_REVISION || "dev",
+      region: "asia-southeast1",
+    },
+    secrets: {
+      GEMINI_API_KEY: {
+        configured: !!geminiSecret.value,
+        source: geminiSecret.source,
+        length: geminiSecret.value ? geminiSecret.value.length : 0,
+      },
+      RESEND_API_KEY: {
+        configured: !!resendSecret.value,
+        source: resendSecret.source,
+        length: resendSecret.value ? resendSecret.value.length : 0,
+      },
+      SENDGRID_API_KEY: {
+        configured: !!sendgridSecret.value,
+        source: sendgridSecret.source,
+        length: sendgridSecret.value ? sendgridSecret.value.length : 0,
+      },
+    },
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -1055,16 +1178,6 @@ interface EmailDispatchResult {
   errorDetail?: string;
 }
 
-function sanitizeSecret(val?: string | null): string {
-  if (!val || typeof val !== "string") return "";
-  return val
-    .trim()
-    .replace(/[\r\n\t]/g, "")
-    .replace(/^bearer\s+/i, "")
-    .replace(/^["']|["']$/g, "")
-    .trim();
-}
-
 async function sendEmailNotification(options: EmailDispatchOptions): Promise<EmailDispatchResult> {
   const { to, name, subject, html, text, provider = "auto", apiKey, fromEmail } = options;
 
@@ -1079,8 +1192,8 @@ async function sendEmailNotification(options: EmailDispatchOptions): Promise<Ema
   }
 
   const directKey = sanitizeSecret(apiKey);
-  const envResendKey = sanitizeSecret(process.env.RESEND_API_KEY);
-  const envSendgridKey = sanitizeSecret(process.env.SENDGRID_API_KEY);
+  const envResendKey = resolveSecret("RESEND_API_KEY").value;
+  const envSendgridKey = resolveSecret("SENDGRID_API_KEY").value;
 
   const resendKey = directKey && (directKey.startsWith("re_") || provider === "resend") ? directKey : (envResendKey || directKey);
   const sendgridKey = directKey && (directKey.startsWith("SG.") || provider === "sendgrid") ? directKey : (envSendgridKey || directKey);
@@ -1345,14 +1458,18 @@ function createCircadianEmailHtml(userName: string, hoursInactive: number, phase
 
 // API: Notification & Email Provider Configuration Status
 app.get("/api/notifications/config", (_req: Request, res: Response) => {
-  const hasResend = !!sanitizeSecret(process.env.RESEND_API_KEY);
-  const hasSendGrid = !!sanitizeSecret(process.env.SENDGRID_API_KEY);
+  const resendSecret = resolveSecret("RESEND_API_KEY");
+  const sendgridSecret = resolveSecret("SENDGRID_API_KEY");
+  const hasResend = !!resendSecret.value;
+  const hasSendGrid = !!sendgridSecret.value;
   const activeProvider = hasResend ? "resend" : hasSendGrid ? "sendgrid" : "preview_mock";
 
   return res.json({
     activeProvider,
     hasResendKey: hasResend,
     hasSendgridKey: hasSendGrid,
+    resendSecretSource: resendSecret.source,
+    sendgridSecretSource: sendgridSecret.source,
     resendFromEmail: process.env.RESEND_FROM_EMAIL || "Ana Journal <onboarding@resend.dev>",
     sendgridFromEmail: process.env.SENDGRID_FROM_EMAIL || "notifications@ana-journal.app",
     isCloudRun: !!process.env.K_SERVICE,
