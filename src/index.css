@@ -168,6 +168,25 @@ html.light ::-webkit-scrollbar-thumb:hover,
 .light .bg-rice-gray {
   background-color: #E4E5DF !important;
 }
+.light .bg-\[\#141812\] {
+  background-color: #EEF0E7 !important;
+  color: #171815 !important;
+}
+.light .bg-\[\#AD3D30\]\/15,
+.light .bg-\[\#AD3D30\]\/20 {
+  background-color: #FDF2F0 !important;
+  border-color: #E29B93 !important;
+}
+.light .bg-\[\#AD3D30\]\/15 p,
+.light .bg-\[\#AD3D30\]\/20 p,
+.light .bg-\[\#AD3D30\]\/15 span,
+.light .bg-\[\#AD3D30\]\/20 span {
+  color: #7B1E14 !important;
+}
+.light .bg-\[\#AD3D30\]\/15 strong,
+.light .bg-\[\#AD3D30\]\/20 strong {
+  color: #991b1b !important;
+}
 
 /* Olive Accents in Light Mode */
 .light .bg-\[\#3D4028\] {

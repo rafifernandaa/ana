@@ -45,7 +45,6 @@ import {
 import { 
   dispatchTestEmail, 
   fetchEmailConfig,
-  runCircadianSchedulerCheck,
   EmailDispatchResult,
   EmailConfigResponse
 } from "../lib/email";
@@ -73,8 +72,6 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
 }) => {
   const { theme, setTheme, isLight } = useTheme();
   const [activeSection, setActiveSection] = useState<"appearance" | "security" | "cloud" | "models" | "export">("appearance");
-  const [schedulerDiagnostics, setSchedulerDiagnostics] = useState<any | null>(null);
-  const [isCheckingScheduler, setIsCheckingScheduler] = useState(false);
   const [browserNotificationPerm, setBrowserNotificationPerm] = useState<NotificationPermission>(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "default"
   );
@@ -93,8 +90,6 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
   const [useRealUserData, setUseRealUserData] = useState(true);
   const [simulatedInactivityHours, setSimulatedInactivityHours] = useState<number>(22);
   const [inactivityThreshold, setInactivityThreshold] = useState<number>(20);
-  const [emailSubTab, setEmailSubTab] = useState<"dispatch" | "scheduler" | "runbook">("dispatch");
-  const [copiedRunbook, setCopiedRunbook] = useState<string | null>(null);
 
   // Google Sheets Integration States
   const [sheetsConfig, setSheetsConfig] = useState<SheetsSyncConfig>(getSheetsConfig());
@@ -157,27 +152,6 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
     return Math.max(0, (Date.now() - latestEntry.createdAt) / (1000 * 60 * 60));
   }, [latestEntry]);
 
-  const handleRunSchedulerCheck = async () => {
-    setIsCheckingScheduler(true);
-    try {
-      const activeHours = useRealUserData ? hoursSinceLastEntry : simulatedInactivityHours;
-      const data = await runCircadianSchedulerCheck({
-        userId: user ? user.uid : "guest_authenticated",
-        userEmail: testEmailAddress || user?.email || undefined,
-        userName: user?.displayName || (testEmailAddress ? testEmailAddress.split("@")[0] : "Reflective User"),
-        lastEntryAt: latestEntry ? latestEntry.createdAt : (Date.now() - activeHours * 60 * 60 * 1000),
-        thresholdHours: inactivityThreshold,
-        provider: emailProvider,
-        apiKey: customApiKey.trim() || undefined,
-      });
-      setSchedulerDiagnostics(data);
-    } catch (err: any) {
-      setSchedulerDiagnostics({ error: err?.message || "Failed to contact Cloud Run service Ana" });
-    } finally {
-      setIsCheckingScheduler(false);
-    }
-  };
-
   const handleSendTestEmail = async () => {
     const targetEmail = testEmailAddress.trim() || user?.email;
     if (!targetEmail || !targetEmail.includes("@")) return;
@@ -201,7 +175,7 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
     } catch (err: any) {
       setEmailTestResult({
         status: "error",
-        provider: "preview_mock",
+        provider: emailProvider === "auto" ? "resend" : emailProvider,
         message: err?.message || "Failed to dispatch test email",
         recipient: targetEmail,
         subject: "Ana // Circadian Inactivity Alert",
@@ -210,12 +184,6 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
     } finally {
       setIsSendingTestEmail(false);
     }
-  };
-
-  const handleCopyRunbook = (snippet: string, key: string) => {
-    navigator.clipboard.writeText(snippet);
-    setCopiedRunbook(key);
-    setTimeout(() => setCopiedRunbook(null), 2500);
   };
 
   const handleUpdateSheetsConfig = (updates: Partial<SheetsSyncConfig>) => {
@@ -627,84 +595,6 @@ export const ConfigWorkspace: React.FC<ConfigWorkspaceProps> = ({
                     )}
                   </div>
                 </div>
-
-                {/* Diagnostics Trigger */}
-                <div className="pt-2 border-t border-[#3D4028] flex flex-wrap items-center justify-between gap-2">
-                  <button
-                    onClick={handleRunSchedulerCheck}
-                    disabled={isCheckingScheduler}
-                    className="px-3 py-1.5 rounded-xs bg-[#3D4028] hover:bg-[#A3A649] text-[#A3A649] hover:text-black border border-[#A3A649]/50 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isCheckingScheduler ? "animate-spin" : ""}`} />
-                    <span>{isCheckingScheduler ? "Evaluating..." : "Run Scheduler Diagnostic for Signed-In User"}</span>
-                  </button>
-                  <span className="text-[10px] text-[#8C8C8C] font-mono">
-                    POST /api/scheduler/check-inactivity
-                  </span>
-                </div>
-
-                {/* Live Output */}
-                {schedulerDiagnostics && (
-                  <div className="mt-3 p-3 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2 text-xs">
-                    <div className="flex items-center justify-between text-[11px] text-[#A3A649] font-bold border-b border-[#3D4028] pb-1">
-                      <div className="flex items-center gap-1.5">
-                        <Activity className="w-3.5 h-3.5" />
-                        <span>Cloud Scheduler Evaluation Response</span>
-                      </div>
-                      <span className="text-[#8C8C8C] text-[10px]">Cloud Run: Ana (asia-southeast1)</span>
-                    </div>
-
-                    <div className="p-2 bg-[#181818] rounded border border-[#262626] space-y-1 text-[11px]">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#8C8C8C]">Action Required:</span>
-                        <span className={`font-bold ${
-                          schedulerDiagnostics.evaluation?.actionRequired === "DISPATCH_CIRCADIAN_NUDGE" 
-                            ? "text-[#AD3D30]" 
-                            : "text-[#10b981]"
-                        }`}>
-                          {schedulerDiagnostics.evaluation?.actionRequired || "NONE"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#8C8C8C]">Circadian Phase:</span>
-                        <span className="text-white font-semibold">
-                          {schedulerDiagnostics.evaluation?.circadianPhase || "N/A"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-[#8C8C8C]">Elapsed Time:</span>
-                        <span className="text-white font-mono">
-                          {schedulerDiagnostics.evaluation?.hoursElapsed} hours
-                        </span>
-                      </div>
-                      {schedulerDiagnostics.evaluation?.nudgePayload && (
-                        <div className="pt-1.5 border-t border-[#3D4028] text-[#e2e8f0]">
-                          <span className="text-[10px] text-[#A3A649] block font-bold">Preview Nudge:</span>
-                          <p className="text-[11px] text-[#8C8C8C] italic">
-                            "{schedulerDiagnostics.evaluation.nudgePayload.body}"
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* gcloud commands */}
-                    {schedulerDiagnostics.gcloudVerificationCommands && (
-                      <div className="pt-2 border-t border-[#3D4028] space-y-1">
-                        <div className="flex items-center gap-1.5 text-[10px] text-[#A3A649] font-bold">
-                          <Terminal className="w-3 h-3" />
-                          <span>gcloud Verification Commands</span>
-                        </div>
-                        <pre className="text-[10px] font-mono text-[#8C8C8C] bg-[#181818] p-2 rounded overflow-x-auto whitespace-pre">
-{`# Run job immediately from terminal
-${schedulerDiagnostics.gcloudVerificationCommands.runJobNow}
-
-# View Cloud Run logs
-${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
 
               {/* Card 3: Direct Circadian Inactivity Email Notifications */}
@@ -735,141 +625,107 @@ ${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
                   Real-world transactional notification engine powered by Google Cloud Scheduler, Cloud Run, and SendGrid/Resend REST APIs. When inactivity exceeds circadian threshold (&gt;20h), Ana automatically delivers a compassionate loop-closure prompt to your inbox.
                 </p>
 
-                {/* Sub-Tabs: Dispatch vs Scheduler Cron vs Runbook */}
-                <div className="flex items-center gap-1 border-b border-[#3D4028] pb-2 text-[11px]">
-                  <button
-                    onClick={() => setEmailSubTab("dispatch")}
-                    className={`px-3 py-1 rounded-xs font-bold transition-all cursor-pointer ${
-                      emailSubTab === "dispatch"
-                        ? "bg-[#A3A649] text-black"
-                        : "bg-[#181818] text-[#8C8C8C] hover:text-white border border-[#3D4028]"
-                    }`}
-                  >
-                    1. Direct Live Dispatch
-                  </button>
-                  <button
-                    onClick={() => setEmailSubTab("scheduler")}
-                    className={`px-3 py-1 rounded-xs font-bold transition-all cursor-pointer ${
-                      emailSubTab === "scheduler"
-                        ? "bg-[#A3A649] text-black"
-                        : "bg-[#181818] text-[#8C8C8C] hover:text-white border border-[#3D4028]"
-                    }`}
-                  >
-                    2. Cloud Scheduler Simulator
-                  </button>
-                  <button
-                    onClick={() => setEmailSubTab("runbook")}
-                    className={`px-3 py-1 rounded-xs font-bold transition-all cursor-pointer ${
-                      emailSubTab === "runbook"
-                        ? "bg-[#A3A649] text-black"
-                        : "bg-[#181818] text-[#8C8C8C] hover:text-white border border-[#3D4028]"
-                    }`}
-                  >
-                    3. GCP Secret Manager Runbook
-                  </button>
-                </div>
-
-                {/* TAB 1: Direct Live Dispatch */}
-                {emailSubTab === "dispatch" && (
-                  <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3">
-                    {/* Signed-In User Identity & Firestore Telemetry Card */}
-                    <div className="p-2.5 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-[#262626] pb-1.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-[#A3A649]/20 border border-[#A3A649]/50 flex items-center justify-center text-[#A3A649] text-[10px] font-bold">
-                            {user?.displayName ? user.displayName[0].toUpperCase() : (user?.email ? user.email[0].toUpperCase() : "G")}
-                          </div>
-                          <span className="text-xs font-bold text-white">
-                            {user ? (user.displayName || user.email?.split("@")[0]) : "Guest Session"}
-                          </span>
-                          {user?.email && (
-                            <span className="text-[10px] text-[#A3A649] font-mono">({user.email})</span>
-                          )}
+                <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3">
+                  {/* Signed-In User Identity & Firestore Telemetry Card */}
+                  <div className="p-2.5 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-[#262626] pb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-[#A3A649]/20 border border-[#A3A649]/50 flex items-center justify-center text-[#A3A649] text-[10px] font-bold">
+                          {user?.displayName ? user.displayName[0].toUpperCase() : (user?.email ? user.email[0].toUpperCase() : "G")}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-xs border font-bold ${
-                            hoursSinceLastEntry >= 20 
-                              ? "bg-[#AD3D30]/20 border-[#AD3D30]/50 text-[#AD3D30]" 
-                              : "bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]"
-                          }`}>
-                            {hoursSinceLastEntry >= 20 ? "INACTIVE (> 20h) • NUDGE DUE" : `ACTIVE (${hoursSinceLastEntry.toFixed(1)}h ago)`}
-                          </span>
-                        </div>
+                        <span className="text-xs font-bold text-white">
+                          {user ? (user.displayName || user.email?.split("@")[0]) : "Guest Session"}
+                        </span>
+                        {user?.email && (
+                          <span className="text-[10px] text-[#A3A649] font-mono">({user.email})</span>
+                        )}
                       </div>
-
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[#8C8C8C] text-[10px] uppercase font-semibold">Telemetry Mode:</span>
-                          <button
-                            type="button"
-                            onClick={() => setUseRealUserData(true)}
-                            className={`px-2 py-0.5 rounded-xs text-[10px] font-mono cursor-pointer transition-all ${
-                              useRealUserData 
-                                ? "bg-[#A3A649] text-black font-bold shadow-xs" 
-                                : "bg-[#181818] text-[#8C8C8C] border border-[#3D4028]"
-                            }`}
-                          >
-                            Live Account ({hoursSinceLastEntry.toFixed(1)}h)
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setUseRealUserData(false)}
-                            className={`px-2 py-0.5 rounded-xs text-[10px] font-mono cursor-pointer transition-all ${
-                              !useRealUserData 
-                                ? "bg-[#A3A649] text-black font-bold shadow-xs" 
-                                : "bg-[#181818] text-[#8C8C8C] border border-[#3D4028]"
-                            }`}
-                          >
-                            Simulation ({simulatedInactivityHours}h)
-                          </button>
-                        </div>
-
-                        <div className="text-[10px] text-[#8C8C8C] font-mono">
-                          Last Entry: <span className="text-white font-semibold">{latestEntry ? `"${latestEntry.title.slice(0, 20)}..."` : "None"}</span> • <span className="text-[#d4da55]">{entries.length} reflections</span>
-                        </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded-xs border font-bold ${
+                          hoursSinceLastEntry >= 20 
+                            ? "bg-[#AD3D30]/20 border-[#AD3D30]/50 text-[#AD3D30]" 
+                            : "bg-[#10b981]/20 border-[#10b981]/50 text-[#10b981]"
+                        }`}>
+                          {hoursSinceLastEntry >= 20 ? "INACTIVE (> 20h) • NUDGE DUE" : `ACTIVE (${hoursSinceLastEntry.toFixed(1)}h ago)`}
+                        </span>
                       </div>
                     </div>
 
-                    {/* How to Get Resend API Key Quick Guide */}
-                    <div className="p-2.5 bg-[#141812] border border-[#3D4028] rounded-xs space-y-1.5">
-                      <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[#8C8C8C] text-[10px] uppercase font-semibold">Telemetry Mode:</span>
                         <button
                           type="button"
-                          onClick={() => setShowResendHelp(!showResendHelp)}
-                          className="text-[11px] font-bold text-[#d4da55] hover:text-white flex items-center gap-1.5 cursor-pointer"
+                          onClick={() => setUseRealUserData(true)}
+                          className={`px-2 py-0.5 rounded-xs text-[10px] font-mono cursor-pointer transition-all ${
+                            useRealUserData 
+                              ? "bg-[#A3A649] text-black font-bold shadow-xs" 
+                              : "bg-[#181818] text-[#8C8C8C] border border-[#3D4028]"
+                          }`}
                         >
-                          <Sparkles className="w-3.5 h-3.5 text-[#d4da55]" />
-                          <span>How to get a free Resend API key (30 seconds, 3,000 free emails)</span>
-                          <span className="text-[9px] text-[#8C8C8C] font-mono">{showResendHelp ? "▲ HIDE" : "▼ SHOW GUIDE"}</span>
+                          Live Account ({hoursSinceLastEntry.toFixed(1)}h)
                         </button>
-                        <a
-                          href="https://resend.com/api-keys"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 font-mono"
+                        <button
+                          type="button"
+                          onClick={() => setUseRealUserData(false)}
+                          className={`px-2 py-0.5 rounded-xs text-[10px] font-mono cursor-pointer transition-all ${
+                            !useRealUserData 
+                              ? "bg-[#A3A649] text-black font-bold shadow-xs" 
+                              : "bg-[#181818] text-[#8C8C8C] border border-[#3D4028]"
+                          }`}
                         >
-                          <span>resend.com/api-keys</span>
-                          <ExternalLink className="w-2.5 h-2.5" />
-                        </a>
+                          Simulation ({simulatedInactivityHours}h)
+                        </button>
                       </div>
 
-                      {showResendHelp && (
-                        <div className="pt-2 border-t border-[#3D4028] space-y-2 text-[11px] text-[#cbd5e1] leading-relaxed">
-                          <ol className="list-decimal list-inside space-y-1 text-[#e2e8f0]">
-                            <li>Open <a href="https://resend.com" target="_blank" rel="noreferrer" className="text-[#A3A649] underline font-bold">resend.com</a> and sign up for free (supports instant GitHub or Google sign-in).</li>
-                            <li>In the Resend dashboard, click <strong>API Keys</strong> in the sidebar &rarr; <strong>Create API Key</strong>.</li>
-                            <li>Name it <code className="bg-[#121212] px-1 text-[#d4da55] border border-[#262626]">Ana Journal</code>, keep <strong>Full access</strong>, and click <strong>Add</strong>.</li>
-                            <li>Copy the generated key (starts with <code className="bg-[#121212] px-1 text-[#d4da55] border border-[#262626]">re_...</code>) and paste it into the <strong>Test API Key</strong> field below.</li>
-                          </ol>
-                          <div className="p-2 bg-[#AD3D30]/15 border border-[#AD3D30]/40 rounded-xs text-[10.5px] text-[#e2e8f0] space-y-1">
-                            <strong className="text-[#AD3D30] block font-bold">CRITICAL RESEND FREE TIER RULE:</strong>
-                            <p>
-                              By default, Resend sends from <code className="text-white font-mono bg-black/40 px-1">onboarding@resend.dev</code>. In this free sandbox mode, Resend <strong>only delivers to the exact email address you registered on Resend</strong>. Make sure your Recipient Email below matches your Resend account email.
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                      <div className="text-[10px] text-[#8C8C8C] font-mono">
+                        Last Entry: <span className="text-white font-semibold">{latestEntry ? `"${latestEntry.title.slice(0, 20)}..."` : "None"}</span> • <span className="text-[#d4da55]">{entries.length} reflections</span>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* How to Get Resend API Key Quick Guide */}
+                  <div className="p-2.5 bg-[#141812] border border-[#3D4028] rounded-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <button
+                        type="button"
+                        onClick={() => setShowResendHelp(!showResendHelp)}
+                        className="text-[11px] font-bold text-[#d4da55] hover:text-white flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#d4da55]" />
+                        <span>How to get a free Resend API key (30 seconds, 3,000 free emails)</span>
+                        <span className="text-[9px] text-[#8C8C8C] font-mono">{showResendHelp ? "▲ HIDE" : "▼ SHOW GUIDE"}</span>
+                      </button>
+                      <a
+                        href="https://resend.com/api-keys"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 font-mono"
+                      >
+                        <span>resend.com/api-keys</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+
+                    {showResendHelp && (
+                      <div className="pt-2 border-t border-[#3D4028] space-y-2 text-[11px] leading-relaxed">
+                        <ol className="list-decimal list-inside space-y-1 text-white light:text-[#171815]">
+                          <li>Open <a href="https://resend.com" target="_blank" rel="noreferrer" className="text-[#A3A649] light:text-[#4D541B] underline font-bold">resend.com</a> and sign up for free (supports instant GitHub or Google sign-in).</li>
+                          <li>In the Resend dashboard, click <strong>API Keys</strong> in the sidebar &rarr; <strong>Create API Key</strong>.</li>
+                          <li>Name it <code className="bg-[#262626] light:bg-[#E4E5DF] px-1 text-[#d4da55] light:text-[#383E14] border border-[#3D4028] light:border-[#D6DAD0] font-mono">Ana Journal</code>, keep <strong>Full access</strong>, and click <strong>Add</strong>.</li>
+                          <li>Copy the generated key (starts with <code className="bg-[#262626] light:bg-[#E4E5DF] px-1 text-[#d4da55] light:text-[#383E14] border border-[#3D4028] light:border-[#D6DAD0] font-mono">re_...</code>) and paste it into the <strong>Direct Secret Key</strong> field below.</li>
+                        </ol>
+                        <div className="p-2.5 bg-[#AD3D30]/20 light:bg-[#FDF2F0] border border-[#AD3D30] light:border-[#E29B93] rounded-xs text-[11px] space-y-1">
+                          <strong className="text-[#fca5a5] light:text-[#991b1b] block font-bold text-xs uppercase tracking-wide">
+                            CRITICAL RESEND FREE TIER RULE:
+                          </strong>
+                          <p className="text-white light:text-[#7B1E14] leading-relaxed">
+                            By default in free sandbox mode, Resend sends from <code className="text-[#fef08a] light:text-[#991b1b] font-mono bg-black/60 light:bg-white px-1.5 py-0.5 rounded border border-[#AD3D30]/40 light:border-red-200">onboarding@resend.dev</code>. In this free sandbox mode, Resend <strong>only delivers to the exact email address you registered on Resend</strong>. Make sure your Recipient Email below matches your Resend login email, otherwise Resend rejects delivery. Also check your Spam/Junk folder.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {/* Recipient Email */}
@@ -1072,127 +928,7 @@ ${schedulerDiagnostics.gcloudVerificationCommands.readLogs}`}
                       </div>
                     )}
                   </div>
-                )}
-
-                {/* TAB 2: Cloud Scheduler Cron Simulator */}
-                {emailSubTab === "scheduler" && (
-                  <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3 text-xs">
-                    <p className="text-[#8C8C8C] leading-relaxed text-[11px]">
-                      Simulates the exact HTTP call that Google Cloud Scheduler executes automatically every 4 hours. When user inactivity exceeds the threshold, the service triggers loop-closure re-engagement.
-                    </p>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs">
-                        <span className="text-[10px] text-[#8C8C8C] block">Target Cron Route</span>
-                        <span className="text-white font-mono text-[11px]">/api/scheduler/check-inactivity</span>
-                      </div>
-                      <div className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs">
-                        <span className="text-[10px] text-[#8C8C8C] block">Trigger Region</span>
-                        <span className="text-[#d4da55] font-mono text-[11px]">asia-southeast1</span>
-                      </div>
-                      <div className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs">
-                        <span className="text-[10px] text-[#8C8C8C] block">Inactivity Gate</span>
-                        <span className="text-white font-mono text-[11px]">&gt;= {inactivityThreshold}h</span>
-                      </div>
-                    </div>
-
-                    <div className="pt-2 flex items-center justify-between">
-                      <button
-                        onClick={handleRunSchedulerCheck}
-                        disabled={isCheckingScheduler}
-                        className="px-4 py-2 bg-[#3D4028] hover:bg-[#A3A649] text-[#d4da55] hover:text-black border border-[#A3A649]/60 rounded-xs text-xs font-bold transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingScheduler ? "animate-spin" : ""}`} />
-                        <span>{isCheckingScheduler ? "Evaluating Cron..." : "Trigger Cloud Scheduler Webhook Simulation"}</span>
-                      </button>
-                    </div>
-
-                    {schedulerDiagnostics && (
-                      <div className="mt-2 p-3 bg-[#121212] border border-[#3D4028] rounded-xs space-y-2">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-[#A3A649] border-b border-[#3D4028] pb-1">
-                          <span>Scheduler Response Payload</span>
-                          <span className="text-[#8C8C8C] text-[10px] font-mono">Service: Ana</span>
-                        </div>
-                        <pre className="text-[10px] font-mono text-[#cbd5e1] overflow-x-auto whitespace-pre p-2 bg-[#181818] rounded border border-[#262626]">
-                          {JSON.stringify(schedulerDiagnostics, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* TAB 3: Google Cloud Secret Manager & Scheduler Runbook */}
-                {emailSubTab === "runbook" && (
-                  <div className="p-3 bg-[#181818] border border-[#3D4028] rounded-xs space-y-3 text-xs">
-                    <p className="text-[#8C8C8C] text-[11px]">
-                      Official Google Cloud CLI runbook for zero-trust Secret Manager and Cloud Scheduler deployment:
-                    </p>
-
-                    {/* Runbook Step 1 */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-white">
-                        <span>1. Create Secret in Google Cloud Secret Manager</span>
-                        <button
-                          onClick={() => handleCopyRunbook("gcloud secrets create RESEND_API_KEY --replication-policy=\"automatic\"\necho -n \"YOUR_API_KEY\" | gcloud secrets versions add RESEND_API_KEY --data-file=-", "step1")}
-                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-mono"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>{copiedRunbook === "step1" ? "COPIED" : "COPY"}</span>
-                        </button>
-                      </div>
-                      <pre className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs font-mono text-[10px] text-[#8C8C8C] overflow-x-auto whitespace-pre">
-{`# Create Secret in Secret Manager
-gcloud secrets create RESEND_API_KEY --replication-policy="automatic"
-
-# Inject API key securely without bash history leaks
-echo -n "re_YOUR_API_KEY" | gcloud secrets versions add RESEND_API_KEY --data-file=-`}
-                      </pre>
-                    </div>
-
-                    {/* Runbook Step 2 */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-white">
-                        <span>2. Mount Secret to Cloud Run Service</span>
-                        <button
-                          onClick={() => handleCopyRunbook("gcloud run services update Ana --update-secrets=RESEND_API_KEY=RESEND_API_KEY:latest --region=asia-southeast1", "step2")}
-                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-mono"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>{copiedRunbook === "step2" ? "COPIED" : "COPY"}</span>
-                        </button>
-                      </div>
-                      <pre className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs font-mono text-[10px] text-[#8C8C8C] overflow-x-auto whitespace-pre">
-{`# Bind Secret Manager secret to Cloud Run environment variable
-gcloud run services update Ana \\
-  --update-secrets=RESEND_API_KEY=RESEND_API_KEY:latest \\
-  --region=asia-southeast1`}
-                      </pre>
-                    </div>
-
-                    {/* Runbook Step 3 */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px] font-bold text-white">
-                        <span>3. Configure Google Cloud Scheduler Inactivity Cron</span>
-                        <button
-                          onClick={() => handleCopyRunbook("gcloud scheduler jobs create http ana-circadian-inactivity-cron --schedule=\"0 */4 * * *\" --uri=\"https://ana-service-url/api/scheduler/check-inactivity\" --location=asia-southeast1 --oidc-service-account-email=ana-invoker@ai-studio-1964eda9-cc24-452a-bee7-3ab0780e0478.iam.gserviceaccount.com", "step3")}
-                          className="text-[10px] text-[#A3A649] hover:text-white flex items-center gap-1 cursor-pointer font-mono"
-                        >
-                          <Copy className="w-3 h-3" />
-                          <span>{copiedRunbook === "step3" ? "COPIED" : "COPY"}</span>
-                        </button>
-                      </div>
-                      <pre className="p-2 bg-[#121212] border border-[#3D4028] rounded-xs font-mono text-[10px] text-[#8C8C8C] overflow-x-auto whitespace-pre">
-{`# Create authenticated HTTP cron job triggering every 4 hours
-gcloud scheduler jobs create http ana-circadian-inactivity-cron \\
-  --schedule="0 */4 * * *" \\
-  --uri="https://YOUR_CLOUD_RUN_URL/api/scheduler/check-inactivity" \\
-  --location=asia-southeast1 \\
-  --oidc-service-account-email=ana-invoker@ai-studio-1964eda9-cc24-452a-bee7-3ab0780e0478.iam.gserviceaccount.com`}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
 
               {/* Card 4: Google Workspace: Dual-Mode Google Sheets Integration */}
               <div className="bg-[#262626] border border-[#3D4028] p-4 rounded-xs space-y-3">
