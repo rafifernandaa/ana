@@ -94,7 +94,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <WhatsInItSection onLaunchTool={onEnterApp} />
       </div>
 
-      {/* Page 5: Palindrome Manifesto & Footer */}
+      {/* Page 5: Reflection & Footer */}
       <LandingFooter
         onStartJournal={onEnterApp}
         onSignIn={onSignIn}

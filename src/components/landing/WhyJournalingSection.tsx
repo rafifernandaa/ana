@@ -218,14 +218,14 @@ export const WhyJournalingSection: React.FC<{ onExploreTools: () => void }> = ({
             <div className="bg-[#3D4028] text-white rounded-2xl p-6 sm:p-8 shadow-md flex flex-col justify-between">
               <div>
                 <div className="font-mono text-[10px] tracking-widest uppercase text-[#A3A649] mb-2 font-bold">
-                  ANA PALINDROME PRINCIPLE
+                  THE REFLECTION PRINCIPLE
                 </div>
                 <div className="font-serif text-sm sm:text-base leading-relaxed text-white/90">
-                  "Looking back allows you to proceed forward with unconditional clarity."
+                  "Examining where you have been is how you create the clarity for where you are going."
                 </div>
               </div>
               <div className="mt-4 pt-4 border-t border-white/10 text-[11px] font-mono text-white/60">
-                A N A • Forward & Backward
+                Observe • Process • Integrate
               </div>
             </div>
           </div>

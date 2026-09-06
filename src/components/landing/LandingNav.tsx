@@ -62,9 +62,6 @@ export const LandingNav: React.FC<LandingNavProps> = ({
             <span className="font-display text-2xl font-semibold tracking-tight text-[#262626]">
               Ana
             </span>
-            <span className="hidden sm:inline-block text-[10px] font-mono tracking-widest text-[#8C8C8C] uppercase">
-              (palindrome)
-            </span>
           </div>
         </div>
 

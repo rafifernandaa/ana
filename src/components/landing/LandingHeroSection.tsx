@@ -42,9 +42,6 @@ export const LandingHeroSection: React.FC<LandingHeroSectionProps> = ({
             <span className="text-[11px] sm:text-xs font-mono tracking-[0.25em] text-[#3D4028] uppercase font-bold px-2 py-0.5 rounded-xs bg-[#3D4028]/8 border border-[#3D4028]/15">
               JOURNALING APP
             </span>
-            <span className="text-[10px] font-mono text-[#8C8C8C] tracking-widest uppercase">
-              • PALINDROME
-            </span>
           </div>
 
           <h1 className="font-display text-7xl sm:text-8xl md:text-9xl font-bold tracking-tight text-[#262626] leading-[0.95] mb-6 select-none">
@@ -169,13 +166,13 @@ export const LandingHeroSection: React.FC<LandingHeroSectionProps> = ({
 
       {/* Hero Bottom Bar: Scroll Indicator on Left & Step Labels on Right */}
       <div className="max-w-7xl mx-auto w-full flex items-end justify-between pt-6 border-t border-[#3D4028]/10 text-xs font-mono select-none z-20">
-        {/* Scroll Prompt */}
+        {/* Scroll Indicator */}
         <button
           onClick={onScrollToNext}
-          className="inline-flex items-center gap-2 text-[#262626]/70 hover:text-[#3D4028] transition-colors cursor-pointer group"
+          className="inline-flex items-center justify-center p-1.5 text-[#262626]/70 hover:text-[#3D4028] transition-colors cursor-pointer group"
+          aria-label="Scroll to next section"
         >
-          <span className="font-semibold tracking-wider">SCROLL</span>
-          <ChevronDown className="w-3.5 h-3.5 group-hover:translate-y-1 transition-transform animate-bounce" />
+          <ChevronDown className="w-4 h-4 group-hover:translate-y-1 transition-transform animate-bounce" />
         </button>
 
         {/* Right Step Indicators (Matching Mockup: LABEL - FEEL - GROW) */}
