@@ -43,12 +43,14 @@ import { Sparkles, AlertCircle, Clock, Mail, Send, Check } from "lucide-react";
 import { useTheme } from "./lib/theme";
 import { getSheetsConfig, syncToGoogleSheets } from "./lib/sheets";
 import { dispatchTestEmail } from "./lib/email";
+import { LandingPage } from "./components/landing/LandingPage";
 
 export default function App() {
   const { isLight } = useTheme();
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [showLanding, setShowLanding] = useState<boolean>(true);
 
   // Baseline data matching the user's reference layout
   const initialDefaultEntry: JournalEntry = {
@@ -509,7 +511,25 @@ export default function App() {
     setActiveNavTab(tab);
   };
 
-  // Loading Screen
+  // 1. Landing Page Screen (Renders before Ana studio boots)
+  if (showLanding) {
+    return (
+      <LandingPage
+        user={user}
+        onSignIn={async () => {
+          try {
+            await handleSignIn();
+            setShowLanding(false);
+          } catch (err) {
+            console.error("Sign in error:", err);
+          }
+        }}
+        onEnterApp={() => setShowLanding(false)}
+      />
+    );
+  }
+
+  // 2. Loading Screen (Ana Booting)
   if (isAuthLoading) {
     return (
       <div className={`min-h-screen ${isLight ? "light bg-[#F7F7F5] text-[#171815]" : "dark bg-[#181818] text-[#e2e8f0]"} flex items-center justify-center p-4 font-mono transition-colors`}>
@@ -537,6 +557,7 @@ export default function App() {
       <AetherHeader
         activeTab={activeNavTab}
         onSelectTab={setActiveNavTab}
+        onOpenLanding={() => setShowLanding(true)}
         layoutMode={layoutMode}
         onToggleLayout={() => {
           setLayoutMode(prev => prev === "split" ? "journal_focus" : prev === "journal_focus" ? "ai_focus" : "split");

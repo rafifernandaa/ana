@@ -1,13 +1,15 @@
 import React from "react";
 import { User } from "firebase/auth";
-import { Columns, LogIn, Sun, Moon, Settings } from "lucide-react";
+import { Columns, LogIn, Sun, Moon, Settings, Home } from "lucide-react";
 import { useTheme } from "../lib/theme";
+import { AnaLogo } from "./common/AnaLogo";
 
 export type NavTabId = "dashboard" | "studio" | "features" | "archive" | "settings";
 
 interface AetherHeaderProps {
   activeTab?: NavTabId;
   onSelectTab?: (tab: NavTabId) => void;
+  onOpenLanding?: () => void;
   layoutMode: "split" | "journal_focus" | "ai_focus";
   onToggleLayout: () => void;
   user: User | null;
@@ -18,6 +20,7 @@ interface AetherHeaderProps {
 export const AetherHeader: React.FC<AetherHeaderProps> = ({
   activeTab = "dashboard",
   onSelectTab,
+  onOpenLanding,
   layoutMode,
   onToggleLayout,
   user,
@@ -56,16 +59,12 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
       {/* Brand / Logo on Top Edge Left */}
       <div className="flex items-center gap-2 sm:gap-3">
         <div 
-          onClick={() => onSelectTab?.("dashboard")}
+          onClick={() => onOpenLanding ? onOpenLanding() : onSelectTab?.("dashboard")}
           className="cursor-pointer flex items-center gap-2 group"
-          title="Ana // Neuroscience-Informed Journal"
+          title="Ana // Return to Landing Page"
         >
-          <div className="w-6 h-6 rounded-full bg-[#262626] border border-[#3D4028] flex items-center justify-center p-0.5 group-hover:border-[#A3A649] transition-all overflow-hidden shrink-0 shadow-xs">
-            <img 
-              src={isLight ? "/assets/ana-logo-dark.png" : "/assets/ana-logo-light.png"} 
-              alt="Ana Logo" 
-              className="w-full h-full object-contain"
-            />
+          <div className="w-6 h-6 rounded-full bg-[#262626] border border-[#3D4028] flex items-center justify-center p-0.5 group-hover:border-[#A3A649] transition-all shrink-0 shadow-xs">
+            <AnaLogo size={18} color={isLight ? "#A3A649" : "#A3A649"} />
           </div>
           <div className="text-xs tracking-wider flex items-center gap-1.5">
             <span className="font-bold text-white text-sm tracking-wide">Ana</span>
@@ -87,6 +86,18 @@ export const AetherHeader: React.FC<AetherHeaderProps> = ({
 
       {/* Right Actions: Theme Toggle, Layout Toggle, Settings & User Auth */}
       <div className="flex items-center gap-1.5 sm:gap-2.5">
+        {/* Landing Page Return Button */}
+        {onOpenLanding && (
+          <button
+            onClick={onOpenLanding}
+            className="px-2 py-1 bg-[#262626] hover:bg-[#3D4028] border border-[#3D4028] rounded-xs text-[10px] tracking-wider text-[#8C8C8C] hover:text-[#A3A649] transition-all flex items-center gap-1.5 cursor-pointer"
+            title="View Ana Landing Page"
+          >
+            <Home className="w-3.5 h-3.5 text-[#A3A649]" />
+            <span className="hidden sm:inline uppercase">LANDING</span>
+          </button>
+        )}
+
         {/* Light / Dark Mode Toggle Button */}
         <button
           id="theme-mode-toggle-btn"
