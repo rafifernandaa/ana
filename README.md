@@ -1,51 +1,73 @@
 # Ana — Neuroscience-Informed Journaling & Somatic Reset System
 
-Ana is a neuroscience-grounded journaling and emotional regulation web application built on **Google AI Studio**, **Google Cloud Run**, and **Cloud Firestore**. By integrating principles of neuroplasticity, affect labeling, cognitive reframing, expressive writing, synaptic pruning rituals, and polyvagal glimmer anchoring, Ana empowers users to physically rewire stress responses and track subjective neural adaptability.
+> **Google Cloud & Hack2Skill APAC GenAI Academy (Cohort 3) — Ideathon Challenge**  
+> **Public Repository:** [https://github.com/rafifernandaa/ana.git](https://github.com/rafifernandaa/ana.git)
+
+Ana is a production-grade, neuroscience-grounded journaling and somatic reset companion built on **Google AI Studio**, **Google Cloud Run**, and **Cloud Firestore**. By integrating empirical principles of neuroplasticity, affect labeling, cognitive reframing, expressive writing, synaptic pruning rituals, and polyvagal glimmer anchoring, Ana empowers users to physically rewire stress responses, externalize cognitive distortions, and track subjective neural adaptability over longitudinal timeframes.
+
+---
+
+## 🏛️ System Architecture
+
+Ana employs a **Zero-Client-Key Architecture**: the browser client never receives, bundles, or directly accesses API credentials. All AI calls, database operations, and external notification dispatches are routed through an Express backend proxy running on Google Cloud Run.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                             CLIENT (BROWSER)                                │
+│   React 19 + TypeScript 5.8 + Vite 6 + Tailwind CSS 4 + Motion + Three.js   │
+└──────────────────────┬───────────────────────────────┬──────────────────────┘
+                       │ HTTPS / JSON                  │ Firebase Auth
+                       ▼                               ▼
+┌──────────────────────────────────────────────┐  ┌───────────────────────────┐
+│              GOOGLE CLOUD RUN                │  │    FIREBASE AUTHENTICATION│
+│   Node.js 24 + Express 4 Backend Proxy       │  │    Google OAuth Provider  │
+│   (/dist/server.cjs - Zero-Trust Gateway)    │  └─────────────┬─────────────┘
+└──────┬───────────────┬───────────────┬───────┘                │
+       │               │               │                        │ UID Verified
+       ▼               ▼               ▼                        ▼
+┌──────────────┐ ┌───────────┐ ┌──────────────┐   ┌───────────────────────────┐
+│GOOGLE SECRET │ │GOOGLE AI  │ │RESEND /      │   │      CLOUD FIRESTORE      │
+│   MANAGER    │ │  STUDIO   │ │SENDGRID REST │   │ Strict User-Isolated Data │
+│GEMINI_API_KEY│ │Gemini 3.8 │ │Transactional │   │  /users/{userId}/*        │
+│RESEND_API_KEY│ │Flash +    │ │Circadian     │   │(Entries, Sessions, Loops, │
+│              │ │Ladder     │ │Notifications │   │ Glimmers, Telemetry)      │
+└──────────────┘ └───────────┘ └──────────────┘   └───────────────────────────┘
+```
+
+- **Frontend**: React 19, TypeScript 5.8, Vite 6, Tailwind CSS 4, Motion (`motion/react`), Three.js (`@react-three/fiber`, `@react-three/drei`), Lucide React, Recharts, Canvas Confetti.
+- **Backend Proxy**: Node.js 24, Express 4, Google GenAI SDK (`@google/genai`), Dotenv, Esbuild.
+- **Database & Auth**: Firebase Authentication (Google OAuth), Cloud Firestore (isolated subcollections).
+- **Deployment & Cloud**: Google Cloud Run, Google Secret Manager, Google Cloud Scheduler, Cloud Logging.
 
 ---
 
 ## 🧠 Neuroscience Pillars Implemented
 
-1. **Neuroplasticity & Synaptic Pruning:**
-   - **Synaptic Pruner Ritual**: Deconstructs catastrophic ruminations and cognitive distortions using the Gemini AI API, followed by a particle dissolution ceremony that rewires thought loops into prefrontal rational anchors stored in Firestore (`/users/{userId}/pruned_loops`).
-2. **Affect Labeling:**
-   - Putting exact somatic and emotional words to unnamed tension, dampening amygdala reactivity in real-time.
-3. **Cognitive Reframing:**
-   - Rewriting stressful automatic narratives into grounded, actionable perspectives.
-4. **Expressive Writing (Pennebaker Paradigm):**
-   - Multi-turn conversational journaling and reflection summaries with resilient fallback model ladders.
-5. **Polyvagal Glimmer Vault:**
-   - Mining and anchoring micro-moments of autonomic safety and sensory calm to engage the ventral vagal brake (`/users/{userId}/glimmers`).
-6. **Psychiatric Decentering ("Vent-to-Clarity" Station):**
-   - Implements evidence-based psychiatric journaling principles: transforms an unstructured emotional vent into an externalized cognitive workbench. Features an anti-rumination timer, AI-powered separation of "camera-verifiable facts" from "interpretive projections", Circle of Control agency mapping, a 5-minute micro-action anchor, and an interactive dual-inhalation Physiological Sigh grounding pacer (`/users/{userId}/psychiatric_distillations`).
-7. **Circadian Day-Boundary & Loop-Closing:**
-   - Morning dopamine priming and evening cognitive offloading (`/users/{userId}/circadian_entries`) to close open mental loops before sleep.
-
----
-
-## 🔒 5-Zone Threat Summary Table
-
-| Threat Zone | Identified Risk | Implemented Countermeasure |
-| :--- | :--- | :--- |
-| **Input Surfaces** | Prompt injection, malformed request bodies, untrusted user uploads | Schema-constrained body parsers (`express.json()`), strict type validation, and parameter sanitization. |
-| **Planning & Reasoning** | Hallucinations, rate exhaustion (429), transient service errors (503) | 4-Tier Resilient Gemini Fallback Ladder (`gemini-3.6-flash` → `gemini-3.1-flash-lite` → `gemini-flash-latest` → `gemini-3.7-flash`). |
-| **Tool Execution** | SSRF, privilege escalation, unauthenticated API execution | Strict server-side proxying (`/api/gemini/*`); zero client-side credential exposure. |
-| **Memory & State** | Cross-user data leaks, unauthorized reads/writes in Firestore | Strict owner-bound Firestore security rules (`request.auth.uid == userId`) across all subcollections. |
-| **Inter-System Comm** | API key leakage in client bundles, network sniffing | Operational credentials dynamically retrieved via environment variables and Google Cloud Secret Manager. |
+1. **Affect Labeling**: Transforming raw, unnamed somatic tension into precise emotional nomenclature, immediately down-regulating amygdala hyperactivity.
+2. **Synaptic Pruning Ritual**: Cognitive distortion deconstruction powered by Gemini, concluding with an interactive particle dissolution ceremony that rewires catastrophizing into prefrontal rational anchors (`/users/{userId}/pruned_loops`).
+3. **Cognitive Reframing**: Automated cognitive restructuring separating camera-verifiable facts from emotional projections.
+4. **Polyvagal Glimmer Vault**: Mining and anchoring autonomic safety micro-moments to engage the ventral vagal brake (`/users/{userId}/glimmers`).
+5. **Psychiatric Decentering ("Vent-to-Clarity" Station)**: Transforms unstructured venting into clinical clarity with anti-rumination pacing, camera-fact filtering, Circle of Control mapping, and physiological sigh breathwork (`/users/{userId}/psychiatric_distillations`).
+6. **Circadian Loop Closure**: Morning dopamine priming and evening cognitive offloading (`/users/{userId}/circadian_entries`) paired with transactional email nudges to prevent cortisol-driven sleep disruption.
+7. **Empirical Telemetry Extraction**: Structured longitudinal tracking of sleep score, somatic tension, and mental clarity synthesized across multi-week arcs.
 
 ---
 
 ## 🛡️ Cloud Firestore Security Rules
 
-Deploy the following `firestore.rules` to enforce strict owner isolation:
+To guarantee complete cross-user data isolation and zero cross-tenant data leakage, the following security rules are enforced at the Firestore database boundary:
 
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User data isolation: only the authenticated owner can access their subcollections
+    // Zero Insecure Defaults: strict user-isolation rule
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /interactions/{interactionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
 
       match /entries/{entryId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
@@ -63,10 +85,6 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      match /interactions/{interactionId} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-      
       match /{document=**} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
@@ -77,111 +95,140 @@ service cloud.firestore {
 
 ---
 
+## 📜 Google AI Studio Setup & System Directives (Constitution)
+
+Ana uses Google AI Studio system instructions to enforce grounded clinical empathy, tone directives, and strict schema compliance.
+
+### 1. Model Configuration
+- **Primary Model**: `gemini-3.8-flash`
+- **Fallback Ladder**: `gemini-3.8-flash` → `gemini-3.7-flash` → `gemini-3.6-flash`
+- **Response Format**: Structured JSON schema output (`application/json`) with defensive server-side parsing.
+
+### 2. System Directive (Constitution)
+```text
+You are Ana, an empathetic, neuroscience-grounded journaling and cognitive reflection companion.
+Principles:
+1. Grounded Empathy: Acknowledge emotional reality without toxic positivity or dismissive cheerfulness.
+2. Neuroscience Foundation: Use affect labeling, cognitive reframing, and polyvagal theory to ground the user.
+3. No Clinical Diagnostics: Never diagnose psychiatric disorders or prescribe medical interventions. Offer somatic grounding and perspective shifts.
+4. Schema Strictness: Always respond using the requested structured JSON schema.
+```
+
+---
+
 ## 🔐 Google Cloud Secret Manager Configuration
 
-Store and bind your Gemini API Key securely without hardcoding strings:
+Secrets are never committed to version control or bundled into client code. Configure them in Google Secret Manager:
 
 ```bash
-# 1. Create and populate the secret in Secret Manager
+# 1. Enable Google Cloud APIs
+gcloud services enable run.googleapis.com secretmanager.googleapis.com
+
+# 2. Create Gemini API Key secret
 gcloud secrets create GEMINI_API_KEY --replication-policy="automatic"
 echo -n "YOUR_GEMINI_API_KEY" | gcloud secrets versions add GEMINI_API_KEY --data-file=-
 
-# 2. Grant the Cloud Run compute service account access to read the secret
-PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format="value(projectNumber)")
+# 3. Create Resend API Key secret (for Circadian transactional email reminders)
+gcloud secrets create RESEND_API_KEY --replication-policy="automatic"
+echo -n "YOUR_RESEND_API_KEY" | gcloud secrets versions add RESEND_API_KEY --data-file=-
 
+# 4. Grant Cloud Run Service Account permissions to access secrets
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format="value(projectNumber)")
 gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
+  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor"
+
+gcloud secrets add-iam-policy-binding RESEND_API_KEY \
   --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
   --role="roles/secretmanager.secretAccessor"
 ```
 
 ---
 
-## 🚀 Google Cloud Run Deployment Flow
+## 🚀 Google Cloud Run Deployment Guide
 
-Deploy Ana with automated challenge verification labeling:
+Deploy Ana directly to Cloud Run with automated secret bindings:
 
 ```bash
-# 1. Build and deploy container to Cloud Run with Secret Manager binding
+# 1. Deploy service with Secret Manager bindings and Challenge verification labels
 gcloud run deploy ana-neuro-journal \
   --source . \
   --platform managed \
-  --region us-central1 \
+  --region asia-southeast1 \
   --allow-unauthenticated \
-  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest,RESEND_API_KEY=RESEND_API_KEY:latest" \
+  --set-env-vars="NODE_ENV=production,RESEND_FROM_EMAIL=Ana Journal <onboarding@resend.dev>" \
   --update-labels=dev-tutorial=cloud-run-ai-challenge
 
-# 2. Verify challenge binding
-gcloud run services update ana-neuro-journal \
-  --update-labels=dev-tutorial=cloud-run-ai-challenge \
-  --region=us-central1
+# 2. Configure Google Cloud Scheduler for Circadian Inactivity Checks (every 4 hours)
+SERVICE_URL=$(gcloud run services describe ana-neuro-journal --region=asia-southeast1 --format="value(status.url)")
+
+gcloud scheduler jobs create http ana-circadian-cron \
+  --schedule="0 */4 * * *" \
+  --uri="${SERVICE_URL}/api/scheduler/check-inactivity" \
+  --location=asia-southeast1 \
+  --http-method=POST \
+  --message-body='{"thresholdHours":20}' \
+  --headers="Content-Type=application/json"
 ```
 
 ---
 
-## 🧪 Comprehensive Walkthrough & Test Guide
+## 📧 Resend API Transactional Email Setup
 
-Every interactive process in Ana has a structured validation workflow:
+Ana includes a transactional email dispatch service that prompts users to close cognitive loops when inactive for over 20 hours:
 
-### Test Case 1: Google Authentication & Isolated Session Initialization
-- **Action**: Click "Sign In with Google" on the top navigation bar.
-- **Expected Outcome**: Firebase Authentication triggers Google OAuth popup. Upon authentication, user UID is recognized, and past entries/sessions for that UID are synced live from Firestore.
+1. Create a free API key at [resend.com/api-keys](https://resend.com/api-keys) (3,000 free emails/month).
+2. **Resend Free Tier Rule**: In free sandbox mode, Resend sends from `onboarding@resend.dev` and **only delivers to the email address registered on your Resend account**.
+3. In Ana's Settings workspace, input your Resend account email as the **Recipient Email Address** to receive live alerts.
+4. Check your **Spam / Junk** folder if the email does not appear in your Primary inbox.
 
-### Test Case 2: Somatic Stress Reset Room Protocol
-- **Action**: Click "Reset Room" in the navigation bar.
-- **Workflow**:
-  1. *Step 1*: Rate somatic tension (1-5) and select physical body tension zones.
-  2. *Step 2*: Complete 3-cycle 4-7-8 vagus nerve breathing pacer.
-  3. *Step 3*: Write 60-second expressive tension discharge.
-  4. *Step 4*: Label affect (e.g. Overwhelmed, Anxious) and receive Gemini Cognitive Reframe.
-  5. *Step 5*: Log post-reset state word and save.
-- **Expected Outcome**: Session appears immediately in the "Resets" history tab and increases the Neuroplastic Rewire Vitality index.
+---
 
-### Test Case 3: Synaptic Pruning Ritual
-- **Action**: Click "Prune Loop" in the navigation bar.
-- **Workflow**: Enter a catastrophic thought (e.g., *"If I make a single mistake at work, my career is completely over"*). Click "Analyze Thought Distortion".
-- **Expected Outcome**: Gemini identifies the cognitive distortion (Catastrophizing / All-or-Nothing) and generates a rational rewired belief. Clicking "Dissolve & Prune Loop" triggers a dissolution ceremony and saves the record to `/users/{userId}/pruned_loops`.
+## 💻 Local Development & Build Commands
 
-### Test Case 4: Polyvagal Glimmer Vault & Mining
-- **Action**: Click "Glimmers" in the navigation bar.
-- **Workflow**:
-  1. Click "Mine Glimmers with Gemini" to extract sensory micro-moments from your current journal text.
-  2. Add manual glimmers (e.g., *"The warm aroma of fresh espresso in the morning"*).
-  3. Click "Start 10s Vagus Reset" on any glimmer.
-- **Expected Outcome**: Full-screen 10-second grounding breathing screen guides autonomic nervous system stabilization.
+### Prerequisites
+- Node.js 20+ (Node 24 recommended)
+- npm 10+
+- Google Cloud SDK (`gcloud`)
 
-### Test Case 5: Psychiatric Decentering Station ("Vent-to-Clarity")
-- **Action**: Inside the Journal Editor, in the "Rewire Matrix" toolbar, click **"Vent-to-Clarity"** (BrainCircuit icon).
-- **Workflow**:
-  1. *Unfiltered Venting*: Type or paste an active frustration or rumination (e.g., *"My manager completely ignored my message all day. They definitely think I'm doing terrible work and I'm probably going to be let go"*). Notice the anti-rumination timer encouraging concise expression without recursive spiraling.
-  2. *Psychiatric Synthesis*: Click **"Distill into Decentered Clarity"**.
-  3. *Cognitive Deconstruction*: Review the 4 clinical pillars generated:
-     - **Camera Facts**: Separates what an objective courtroom/video camera would record vs. emotional assumptions.
-     - **Interpretations / Mind-Reading**: Identifies cognitive projections and assumptions.
-     - **Circle of Control**: Contrasts what is directly actionable vs. what must be surrendered.
-     - **Micro-Action Anchor**: A concrete, under-5-minute agency step.
-  4. *Somatic Grounding Exit*: Click **"Begin 3-Cycle Physiological Sigh"**. Follow the dual-inhalation pacer with binaural harmonic sound to reset heart rate variability.
-  5. *Persistence*: Click **"Save Clarity Record & Inject to Journal"**.
-- **Expected Outcome**:
-  - The clarity distillation is persisted to Cloud Firestore (`/users/{userId}/psychiatric_distillations`).
-  - A formatted clinical debrief is injected directly into the active journal draft.
-  - The record appears under the **Clarity** tab in the sidebar history drawer with full delete and inspect capabilities.
+### Installation
+```bash
+# Clone the repository
+git clone https://github.com/rafifernandaa/ana.git
+cd ana
 
-### Test Case 6: Circadian Day-Boundary & Loop-Closing
-- **Action**: In the Journal Editor, click the Circadian tool button (Sun/Moon icon).
-- **Workflow**:
-  1. Toggle between Morning Intention (Dopamine & Direction) and Evening Loop-Closing (Cognitive Offload).
-  2. Set top intentional priorities or dump open loops with concrete next actions.
-  3. Save the entry to Cloud Firestore (`/users/{userId}/circadian_entries`).
-- **Expected Outcome**: The check-in saves to Firestore and renders in the **Circadian** tab in the sidebar.
+# Install dependencies
+npm install
 
-### Test Case 7: Interactive 3D Chronicle Landing Page
-- **Action**: Load the application in a logged-out state (or sign out).
-- **Workflow**:
-  1. *Hero View (Act I)*: Observe the 3D leather-bound chronicle centered in space with dynamic shadows. Note the gold embossed spine and quote inscription by Viktor E. Frankl.
-  2. *Scroll Down (Act II - Vent-to-Clarity)*: Scroll down 20-40%. Watch the 3D book smoothly translate to the left half of the screen and tilt toward the reader, while the right side displays the Psychiatric Decentering feature card.
-  3. *Scroll Down (Act III - Polyvagal Reset)*: Scroll down 45-70%. Watch the 3D book sweep gracefully to the right side of the screen, revealing fresh inking on autonomic glimmers, while the left side displays the Polyvagal Reset card.
-  4. *Scroll Down (Act IV - Circadian Closure)*: Scroll down 70-88%. Watch the book pan back to the left, highlighting evening loop closure and morning dopamine priming.
-  5. *Scroll Down (Act V - Sovereign Vault)*: Scroll to the bottom. Watch the book return to the center with its golden silk bookmark settled, accompanied by Google Sign-In and security verification assurances.
-  6. *Side Chapter Navigation*: Click any of the floating side chapter pills (Awakening, Vent-to-Clarity, Polyvagal Reset, Circadian Closure, Sovereign Vault). Confirm smooth programmatic scroll jumps directly to that chapter.
-- **Expected Outcome**: 60fps cinematic 3D kinematics, no layout stutter, and zero-crash WebGL fallback for older devices.
+# Setup local environment variables (.env)
+cp .env.example .env
+# Fill in GEMINI_API_KEY, FIREBASE credentials, and optional RESEND_API_KEY
+```
 
+### Commands
+| Command | Description |
+| :--- | :--- |
+| `npm run dev` | Runs the full-stack app locally using Vite middleware on Express (`localhost:3000`) |
+| `npm run lint` | Runs type checks across the entire codebase (`tsc --noEmit`) |
+| `npm run build` | Builds Vite frontend into `dist/` and bundles `server.ts` into `dist/server.cjs` via esbuild |
+| `npm start` | Runs the compiled production server (`node dist/server.cjs`) |
+| `npm run clean` | Removes compiled artifacts (`dist/`) |
+
+---
+
+## 🔒 5-Zone Threat Modeling & Security Matrix
+
+| Threat Zone | Identified Risk | Implemented Countermeasure |
+| :--- | :--- | :--- |
+| **Input Surfaces** | Prompt injection, PII leakage, malformed payloads | DLP sanitization regex filter, body bounds (`10mb` limit), strict schema validation. |
+| **Planning & Reasoning** | Rate limits (429), model unavailability (503), hallucination | 3-tier fallback ladder (`gemini-3.8-flash` → `gemini-3.7-flash` → `gemini-3.6-flash`). |
+| **Tool Execution** | SSRF, privilege escalation, unauthenticated endpoints | Server-side API proxying (`/api/gemini/*`); zero client-side credential exposure. |
+| **Memory & State** | Cross-tenant data leakage in Firestore | Strict owner-bound security rules (`request.auth.uid == userId`) across all subcollections. |
+| **Inter-System Comm** | API key leakage in client bundles, network sniffing | Dynamic secret resolution via Google Cloud Secret Manager at runtime. |
+
+---
+
+## 📄 License & Attribution
+Engineered by **Rafif Fernanda** for the **Google Cloud & Hack2Skill APAC GenAI Academy (Cohort 3) Ideathon Challenge**.
+Licensed under the Apache-2.0 License.
